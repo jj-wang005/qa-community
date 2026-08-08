@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException, Path
 from sqlalchemy.orm import Session
 
 from app.core.deps import get_current_user
@@ -38,3 +38,24 @@ async def list_questions(db: Session = Depends(get_db)):
         })
 
     return result
+
+@router.get("/{id}")
+async def get_questions(id:int = Path(...,gt = 0, description="填写想要查询的新闻id"),
+                        db: Session = Depends(get_db)
+                        ):
+    existing = db.get(Question,id)
+    if not existing:
+        raise HTTPException(status_code=404, detail="内容不存在")
+    existing.view_count += 1
+    db.commit()
+    author = db.get(User,existing.author_id)
+    return{
+        "id": existing.id,
+        "author_name": author.username if author else "未知用户",
+        "title": existing.title,
+        "content": existing.content,
+        "answer_count": existing.answer_count,
+        "view_count": existing.view_count,
+        "created_at": existing.created_at,
+        "updated_at": existing.updated_at,
+    }
