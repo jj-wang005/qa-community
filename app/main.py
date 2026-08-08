@@ -1,13 +1,14 @@
 from fastapi import FastAPI
 from app.models import User, Question, Answer
 from app.db.base import Base, engine
-from app.routers import auth, questions
+from app.routers import auth, questions, answers
 
 app = FastAPI(title="问答社区")
 
 # 挂载各路由模块
 app.include_router(auth.router)
 app.include_router(questions.router)
+app.include_router(answers.router)
 
 @app.on_event("startup")
 def on_startup():
