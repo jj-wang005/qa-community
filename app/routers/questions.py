@@ -20,7 +20,7 @@ async def create_question(
 
     return {"msg": "成功发布"}
 
-@router.get("")
+@router.get("",  response_model=QuestionOut)
 async def list_questions(db: Session = Depends(get_db)):
     questions = db.query(Question).order_by(Question.created_at.desc()).all()
     result=[]
@@ -39,7 +39,7 @@ async def list_questions(db: Session = Depends(get_db)):
 
     return result
 
-@router.get("/{id}")
+@router.get("/{id}",  response_model=QuestionOut)
 async def get_questions(id:int = Path(...,gt = 0, description="填写想要查询的新闻id"),
                         db: Session = Depends(get_db)
                         ):
