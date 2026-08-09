@@ -1,3 +1,5 @@
+from typing import List
+
 from fastapi import APIRouter, Path, Depends, HTTPException
 from sqlalchemy.orm import Session
 
@@ -7,6 +9,7 @@ from app.models import User, Question, Answer
 from app.schemas.answers import AnswerOut, AnswerCreate
 
 router = APIRouter(prefix="/questions", tags=["回答"])
+answer_router = APIRouter(prefix="/answers", tags=["回答"])
 
 @router.post("/{question_id}/answers", response_model=AnswerOut)
 async def create_answer(
@@ -40,3 +43,50 @@ async def create_answer(
         "created_at": answer.created_at,
     }
 
+@router.get("/{question_id}/answers", response_model=List[AnswerOut])
+async def list_answers(
+        question_id: int = Path(..., gt=0, description = "填入帖子id即可获取评论"),
+        db: Session = Depends(get_db),
+):
+    answers = db.query(Answer).filter(Answer.question_id == question_id).order_by(Answer.created_at.desc()).all()
+    result = []
+    for q in answers:
+        author = db.get(User, q.author_id)
+        result.append({
+            "id": q.id,
+            "question_id": q.question_id,
+            "author_name": author.username if author else "未知用户",
+            "content": q.content,
+            "like_count": q.like_count,
+            "is_accepted": q.is_accepted,
+            "created_at": q.created_at,
+        })
+
+    return result
+
+@answer_router.post("/{answer_id}/likes")
+async def answer_likes(
+        answer_id: int = Path(..., gt=0, description="点赞你喜欢的评论"),
+        db: Session = Depends(get_db),
+        current_user: User = Depends(get_current_user),
+):
+    answers = db.get(Answer, answer_id)
+    if not answers:
+        raise HTTPException(status_code=404, detail="糟糕，评论不见了")
+    answers.like_count += 1
+    db.commit()
+    return {"喜欢数量": answers.like_count}
+
+
+@answer_router.post("/{answer_id}/accept")
+async def accepte_answers(
+        answer_id: int = Path(..., gt=0, description="接受你喜欢的评论"),
+        db: Session = Depends(get_db),
+        current_user: User = Depends(get_current_user),
+):
+    answers = db.get(Answer, answer_id)
+    if not answers:
+        raise HTTPException(status_code=404, detail="糟糕，评论不见了")
+    answers.is_accepted = True
+    db.commit()
+    return {"接受": answers.is_accepted}
