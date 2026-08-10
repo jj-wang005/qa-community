@@ -1,8 +1,7 @@
 from fastapi import FastAPI
-from app.models import User, Question, Answer
+from app.models import User, Question, Answer, Like
 from app.db.base import Base, engine
-from app.routers import auth, questions, answers
-
+from app.routers import auth, questions, answers, like
 
 app = FastAPI(title="问答社区")
 
@@ -11,6 +10,7 @@ app.include_router(auth.router)
 app.include_router(questions.router)
 app.include_router(answers.router)
 app.include_router(answers.answer_router)
+app.include_router(like.router)
 @app.on_event("startup")
 def on_startup():
     # 启动时自动建表，已存在的表自动跳过

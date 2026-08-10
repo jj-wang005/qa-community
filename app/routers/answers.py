@@ -64,20 +64,6 @@ async def list_answers(
 
     return result
 
-@answer_router.post("/{answer_id}/likes")
-async def answer_likes(
-        answer_id: int = Path(..., gt=0, description="点赞你喜欢的评论"),
-        db: Session = Depends(get_db),
-        current_user: User = Depends(get_current_user),
-):
-    answers = db.get(Answer, answer_id)
-    if not answers:
-        raise HTTPException(status_code=404, detail="糟糕，评论不见了")
-    answers.like_count += 1
-    db.commit()
-    return {"喜欢数量": answers.like_count}
-
-
 @answer_router.post("/{answer_id}/accept")
 async def accepte_answers(
         answer_id: int = Path(..., gt=0, description="接受你喜欢的评论"),
