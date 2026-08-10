@@ -1,3 +1,5 @@
+from typing import List
+
 from fastapi import APIRouter, Depends, HTTPException, Path
 from sqlalchemy.orm import Session
 
@@ -20,9 +22,16 @@ async def create_question(
 
     return {"msg": "成功发布"}
 
-@router.get("",  response_model=QuestionOut)
-async def list_questions(db: Session = Depends(get_db)):
-    questions = db.query(Question).order_by(Question.created_at.desc()).all()
+@router.get("",  response_model=List[QuestionOut])
+async def list_questions(db: Session = Depends(get_db), sort = "hot"):
+    questions = db.query(Question).all()
+    if sort == "new":
+        questions = db.query(Question).order_by(Question.created_at.desc()).all()
+    else:
+        # 在原表的基础上进行修改，sort返回值是none
+        questions.sort(key = lambda q:q.hot_score(), reverse=True)
+        # 重新复制给新的表，sorted返回值是一个新的列表
+        # questions = questions.sorted(key = lambda q:q.hot_score(), reverse=True)
     result=[]
     for q in questions:
         author = db.get(User,q.author_id)
