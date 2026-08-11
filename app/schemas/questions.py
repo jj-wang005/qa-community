@@ -1,3 +1,5 @@
+from enum import Enum
+
 from pydantic import BaseModel, Field
 from datetime import datetime
 class CreateQuestion(BaseModel):
@@ -13,3 +15,7 @@ class QuestionOut(BaseModel):
     view_count: int
     created_at: datetime
     updated_at: datetime
+
+class QuestionSort(str, Enum):
+    hot = "hot"
+    new = "new"

@@ -1,12 +1,15 @@
+import json
 from typing import List
 
-from fastapi import APIRouter, Depends, HTTPException, Path
+import redis
+from fastapi import APIRouter, Depends, HTTPException, Path, Query
 from sqlalchemy.orm import Session
 
 from app.core.deps import get_current_user
+from app.core.redis import redis_client
 from app.db.base import get_db
 from app.models import User, Question
-from app.schemas.questions import CreateQuestion, QuestionOut
+from app.schemas.questions import CreateQuestion, QuestionOut, QuestionSort
 
 router = APIRouter(prefix="/questions", tags=["问题"])
 
@@ -23,13 +26,26 @@ async def create_question(
     return {"msg": "成功发布"}
 
 @router.get("",  response_model=List[QuestionOut])
-async def list_questions(db: Session = Depends(get_db), sort = "hot"):
-    questions = db.query(Question).all()
-    if sort == "new":
-        questions = db.query(Question).order_by(Question.created_at.desc()).all()
+async def list_questions(
+        sort: QuestionSort = QuestionSort.hot,
+        db: Session = Depends(get_db),
+        page: int = Query(1,ge=0,description="页码从1开始"),
+        size: int = Query(10,ge=0,le=100, description="页码从1开始"),
+):
+    offset = (page-1)*size
+    key = f"questions:{sort.value}:{page}:{size}"
+    data = redis_client.get(key)
+    if data:
+        print("【命中缓存】不用查库了")
+        return json.loads(data)
+
+    if sort == QuestionSort.new:
+        questions = db.query(Question).order_by(Question.created_at.desc()).offset(offset).limit(size).all()
     else:
         # 在原表的基础上进行修改，sort返回值是none
-        questions.sort(key = lambda q:q.hot_score(), reverse=True)
+        questions = db.query(Question).all()
+        all_questions = sorted(questions, key = lambda q:q.hot_score(), reverse=True)
+        questions = all_questions[offset: offset + size]
         # 重新复制给新的表，sorted返回值是一个新的列表
         # questions = questions.sorted(key = lambda q:q.hot_score(), reverse=True)
     result=[]
@@ -45,7 +61,8 @@ async def list_questions(db: Session = Depends(get_db), sort = "hot"):
             "created_at": q.created_at,
             "updated_at": q.updated_at,
         })
-
+    redis_client.set(key, json.dumps(result, default=str), ex=60)
+    print("【未命中】查了数据库")
     return result
 
 @router.get("/{id}",  response_model=QuestionOut)
