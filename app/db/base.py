@@ -8,7 +8,10 @@ class Base(DeclarativeBase):
 
 #建立数据库会话引擎
 engine = create_engine(
-    settings.DATABASE_URL
+    settings.DATABASE_URL,
+    pool_size = 10,
+    max_overflow = 20,
+    pool_pre_ping = True
 )
 
 #建立会话工厂
