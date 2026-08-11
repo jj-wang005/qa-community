@@ -51,9 +51,8 @@ async def list_answers(
         page: int = Query(1, ge=1, description="页码从1开始"),
         size: int = Query(10, ge=1, le=100, description="每页的内容数量"),
 ):
-    offset = (page-1)*size
     answers = db.query(Answer).filter(Answer.question_id == question_id).order_by(Answer.created_at.desc())
-    paginate(answers, page, size)
+    answers = paginate(answers, page, size)
     result = []
     for q in answers:
         author = db.get(User, q.author_id)

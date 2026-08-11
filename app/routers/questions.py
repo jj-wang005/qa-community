@@ -39,7 +39,6 @@ async def list_questions(
         page: int = Query(1,ge=1,description="页码从1开始"),
         size: int = Query(10,ge=1,le=100, description="每页的内容数量"),
 ):
-    offset = (page-1)*size
     key = f"questions:{sort.value}:{page}:{size}"
     data = redis_client.get(key)
     if data:
@@ -48,11 +47,11 @@ async def list_questions(
 
     if sort == QuestionSort.new:
         questions = db.query(Question).order_by(Question.created_at.desc())
-        paginate(questions, page, size)
+        questions = paginate(questions, page, size)
     else:
         hot_expr = func.log2(Question.view_count + 1) + Question.answer_count * 10
         questions = db.query(Question).order_by(hot_expr.desc())
-        paginate(questions, page, size)
+        questions = paginate(questions, page, size)
         # 在原表的基础上进行修改，sort返回值是none
         # questions = db.query(Question).all()
         # all_questions = sorted(questions, key = lambda q:q.hot_score(), reverse=True)
