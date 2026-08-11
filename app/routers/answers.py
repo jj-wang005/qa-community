@@ -1,9 +1,10 @@
 from typing import List
 
-from fastapi import APIRouter, Path, Depends, HTTPException
+from fastapi import APIRouter, Path, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 
 from app.core.deps import get_current_user
+from app.core.paginate import paginate
 from app.db.base import get_db
 from app.models import User, Question, Answer
 from app.schemas.answers import AnswerOut, AnswerCreate
@@ -47,8 +48,12 @@ async def create_answer(
 async def list_answers(
         question_id: int = Path(..., gt=0, description = "填入帖子id即可获取评论"),
         db: Session = Depends(get_db),
+        page: int = Query(1, ge=1, description="页码从1开始"),
+        size: int = Query(10, ge=1, le=100, description="每页的内容数量"),
 ):
-    answers = db.query(Answer).filter(Answer.question_id == question_id).order_by(Answer.created_at.desc()).all()
+    offset = (page-1)*size
+    answers = db.query(Answer).filter(Answer.question_id == question_id).order_by(Answer.created_at.desc())
+    paginate(answers, page, size)
     result = []
     for q in answers:
         author = db.get(User, q.author_id)

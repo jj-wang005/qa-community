@@ -3,9 +3,11 @@ from typing import List
 
 import redis
 from fastapi import APIRouter, Depends, HTTPException, Path, Query
+from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from app.core.deps import get_current_user
+from app.core.paginate import paginate
 from app.core.redis import redis_client
 from app.db.base import get_db
 from app.models import User, Question
@@ -29,8 +31,8 @@ async def create_question(
 async def list_questions(
         sort: QuestionSort = QuestionSort.hot,
         db: Session = Depends(get_db),
-        page: int = Query(1,ge=0,description="页码从1开始"),
-        size: int = Query(10,ge=0,le=100, description="页码从1开始"),
+        page: int = Query(1,ge=1,description="页码从1开始"),
+        size: int = Query(10,ge=1,le=100, description="每页的内容数量"),
 ):
     offset = (page-1)*size
     key = f"questions:{sort.value}:{page}:{size}"
@@ -40,12 +42,16 @@ async def list_questions(
         return json.loads(data)
 
     if sort == QuestionSort.new:
-        questions = db.query(Question).order_by(Question.created_at.desc()).offset(offset).limit(size).all()
+        questions = db.query(Question).order_by(Question.created_at.desc())
+        paginate(questions, page, size)
     else:
+        hot_expr = func.log2(Question.view_count + 1) + Question.answer_count * 10
+        questions = db.query(Question).order_by(hot_expr.desc())
+        paginate(questions, page, size)
         # 在原表的基础上进行修改，sort返回值是none
-        questions = db.query(Question).all()
-        all_questions = sorted(questions, key = lambda q:q.hot_score(), reverse=True)
-        questions = all_questions[offset: offset + size]
+        # questions = db.query(Question).all()
+        # all_questions = sorted(questions, key = lambda q:q.hot_score(), reverse=True)
+        # questions = all_questions[offset: offset + size]
         # 重新复制给新的表，sorted返回值是一个新的列表
         # questions = questions.sorted(key = lambda q:q.hot_score(), reverse=True)
     result=[]

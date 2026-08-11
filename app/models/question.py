@@ -18,6 +18,7 @@ class Question(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
 
-    def hot_score(self):
-        hot = math.log2(self.view_count + 1) + self.answer_count * 10
-        return hot
+    # 此方法为python方法，算出所有的热度之后进行排序，排序完成之后在进行切分，浪费资源。更新成数据库方法，用多少查多少
+    # def hot_score(self):
+    #     hot = math.log2(self.view_count + 1) + self.answer_count * 10
+    #     return hot
