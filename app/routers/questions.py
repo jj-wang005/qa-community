@@ -21,9 +21,14 @@ async def create_question(
         db:Session = Depends(get_db),
         current_user:User = Depends(get_current_user)
 ):
+
     question = Question(author_id = current_user.id, title = payload.title, content=payload.content)
     db.add(question)
     db.commit()
+
+    for k in redis_client.keys("questions:new:*"):
+        redis_client.delete(k)
+        # print("已经删掉了", k)
 
     return {"msg": "成功发布"}
 
@@ -38,7 +43,7 @@ async def list_questions(
     key = f"questions:{sort.value}:{page}:{size}"
     data = redis_client.get(key)
     if data:
-        print("【命中缓存】不用查库了")
+        # print("【命中缓存】不用查库了")
         return json.loads(data)
 
     if sort == QuestionSort.new:
@@ -68,7 +73,7 @@ async def list_questions(
             "updated_at": q.updated_at,
         })
     redis_client.set(key, json.dumps(result, default=str), ex=60)
-    print("【未命中】查了数据库")
+    # print("【未命中】查了数据库")
     return result
 
 @router.get("/{id}",  response_model=QuestionOut)
