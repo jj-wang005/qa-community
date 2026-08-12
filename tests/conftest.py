@@ -100,3 +100,18 @@ def client(test_engine):
         yield c
 
     app.dependency_overrides.pop(get_db, None)
+
+
+@pytest.fixture()
+def auth(client):
+    """注册 + 登录的助手：返回一个函数，调用它就能拿到 token。
+
+    用法：token = auth()                # 默认用户 alice
+          token = auth(username="bob")  # 指定用户名
+    所有测试文件都能直接用（conftest 的 fixture 自动可见），不用 import。
+    """
+    def _register_and_login(username="alice", password="secret123"):
+        client.post("/auth/register", json={"username": username, "password": password})
+        resp = client.post("/auth/login", json={"username": username, "password": password})
+        return resp.json()["token"]
+    return _register_and_login
