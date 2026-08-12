@@ -1,10 +1,7 @@
 """
 tests/test_like.py —— 点赞接口的自动化测试
 
-点赞对象是「回答」，但它是独立的路由文件（app/routers/like.py），
-所以按「一个路由文件 = 一个测试文件」的约定，单独放一个文件。
 """
-
 
 def test_like_without_token_returns_401(client):
     """没带 token 点赞 → 401。"""

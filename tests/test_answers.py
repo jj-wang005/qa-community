@@ -1,9 +1,8 @@
 """
 tests/test_answers.py —— 回答接口的自动化测试
 
-覆盖：发回答（鉴权/404/成功）、answer_count 联动、回答分页、采纳
+覆盖：发回答（鉴权/404/成功）、answer_count 联动、回答分页、采纳、越权防护
 """
-import pytest
 
 
 def test_post_answer_without_token_returns_401(client):
@@ -114,9 +113,8 @@ def test_register_login_and_accept_answer(client, auth):
     assert resp.json()["接受"] is True
 
 
-@pytest.mark.xfail(reason="权限漏洞：任何登录用户都能采纳任意回答，缺少作者校验，应返回 403")
 def test_cannot_accept_others_answer(client, auth):
-    """用户 B 不能采纳用户 A 的回答（应 403）——当前代码有漏洞，此测试预期失败。"""
+    """用户 B 不能采纳用户 A 的回答 → 403（越权防护）。"""
     token_a = auth(username="user_a")
     client.post(
         "/questions",

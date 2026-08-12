@@ -32,8 +32,6 @@ def test_duplicate_register_returns_400(client):
 
 def test_list_questions_respects_page_size(client, auth):
     """发 3 个问题，请求 size=2 → 应该只返回 2 条。
-
-    这条专门防「分页失效」坑：paginate() 返回值没接住会导致返回全量数据。
     """
     for i in range(3):
         token = auth(username=f"user{i}")

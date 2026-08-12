@@ -77,6 +77,10 @@ async def accepte_answers(
     answers = db.get(Answer, answer_id)
     if not answers:
         raise HTTPException(status_code=404, detail="糟糕，评论不见了")
-    answers.is_accepted = True
+    question = db.get(Question, answers.question_id)
+    if question.author_id == current_user.id:
+        answers.is_accepted = True
+    else:
+        raise HTTPException(status_code=403, detail="只有作者才可以采纳评论")
     db.commit()
     return {"接受": answers.is_accepted}
