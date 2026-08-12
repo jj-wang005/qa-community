@@ -20,3 +20,6 @@ CLAUDE.md
 
 # 本地测试脚本（一次性工具，不提交）
 scripts/
+
+# pytest 缓存（机器生成的临时文件，不提交）
+.pytest_cache/
