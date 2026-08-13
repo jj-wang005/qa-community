@@ -1,4 +1,4 @@
-# IDE 配置（PyCharm/IDEA，别人不需要也不该提交）
+# IDE 配置（PyCharm/IDEA）
 .idea/
 
 # Python 字节码缓存

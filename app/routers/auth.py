@@ -13,7 +13,7 @@ async def register(payload: RegisterUser, db: Session = Depends(get_db)):
     exist = db.query(User).filter(User.username == payload.username).first()
     if exist:
             raise HTTPException(status_code=400, detail="用户已存在")
-    user = User(username = payload.username, password_hash = get_password_hash(payload.password)) #后半段大的User是数据库的映射操作吗？？？？注意研究一下
+    user = User(username = payload.username, password_hash = get_password_hash(payload.password))
     db.add(user)
     db.commit()
     return {"message": "注册成功"}
