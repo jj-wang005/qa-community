@@ -79,19 +79,31 @@ async def list_questions(
 async def get_questions(id:int = Path(...,gt = 0, description="填写想要查询的新闻id"),
                         db: Session = Depends(get_db)
                         ):
-    existing = db.get(Question,id)
+
+    cache_key = f"question:{id}"
+    data = redis_client.get(cache_key)
+    if data:
+        view_count = redis_client.incr(f"question:views:{id}")  # incr等于increment
+        result = json.loads(data)
+        result["view_count"] = view_count
+        return result
+    existing = db.get(Question, id)
     if not existing:
         raise HTTPException(status_code=404, detail="内容不存在")
-    existing.view_count += 1
-    db.commit()
+    redis_client.set(f"question:views:{id}", value=existing.view_count, nx=True)
+    view_count = redis_client.incr(f"question:views:{id}") # incr等于increment
+
     author = db.get(User,existing.author_id)
-    return{
+    cache_body = {
         "id": existing.id,
         "author_name": author.username if author else "未知用户",
         "title": existing.title,
         "content": existing.content,
         "answer_count": existing.answer_count,
-        "view_count": existing.view_count,
         "created_at": existing.created_at,
         "updated_at": existing.updated_at,
     }
+
+    redis_client.set(cache_key, json.dumps(cache_body, default=str), ex=60)
+    cache_body["view_count"] = view_count
+    return cache_body

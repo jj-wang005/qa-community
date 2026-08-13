@@ -1,16 +1,34 @@
+import asyncio
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 
+from app.core.redis import redis_client
 from app.models import User, Question, Answer, Like  # noqa: F401 确保模型注册进 Base.metadata
-from app.db.base import Base, engine
+from app.db.base import Base, engine, SessionLocal
 from app.routers import auth, questions, answers, like
 
+async def sync_view_count():
+    while True:
+        await asyncio.sleep(60)
+        keys = redis_client.keys(f"question:views:*")
+        db = SessionLocal()
+        try:
+            for k in keys:
+                qid = int(k.split(":")[-1])
+                questions = db.get(Question, qid)
+                if questions:
+                    questions.view_count = int(redis_client.get(k))
+                    redis_client.delete(k)
+                db.commit()
+        finally:
+            db.close()
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # 启动时自动建表，已存在的表自动跳过
     Base.metadata.create_all(bind=engine)
+    task = asyncio.create_task(sync_view_count())
     yield
 
 
