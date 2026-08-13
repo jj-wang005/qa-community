@@ -4,7 +4,7 @@ from typing import List
 import redis
 from fastapi import APIRouter, Depends, HTTPException, Path, Query
 from sqlalchemy import func
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 
 from app.core.deps import get_current_user
 from app.core.paginate import paginate
@@ -46,11 +46,11 @@ async def list_questions(
         return json.loads(data)
 
     if sort == QuestionSort.new:
-        questions = db.query(Question).order_by(Question.created_at.desc())
+        questions = db.query(Question).options(joinedload(Question.author)).order_by(Question.created_at.desc())
         questions = paginate(questions, page, size)
     else:
         hot_expr = func.log2(Question.view_count + 1) + Question.answer_count * 10
-        questions = db.query(Question).order_by(hot_expr.desc())
+        questions = db.query(Question).options(joinedload(Question.author)).order_by(hot_expr.desc())
         questions = paginate(questions, page, size)
         # 在原表的基础上进行修改，sort返回值是none
         # questions = db.query(Question).all()
@@ -60,10 +60,9 @@ async def list_questions(
         # questions = questions.sorted(key = lambda q:q.hot_score(), reverse=True)
     result=[]
     for q in questions:
-        author = db.get(User,q.author_id)
         result.append({
             "id": q.id,
-            "author_name": author.username if author else "未知用户",
+            "author_name": q.author.username if q.author else "未知用户",
             "title": q.title,
             "content": q.content,
             "answer_count": q.answer_count,
@@ -87,16 +86,14 @@ async def get_questions(id:int = Path(...,gt = 0, description="填写想要查�
         result = json.loads(data)
         result["view_count"] = view_count
         return result
-    existing = db.get(Question, id)
+    existing = db.query(Question).options(joinedload(Question.author)).filter(Question.id == id).first()
     if not existing:
         raise HTTPException(status_code=404, detail="内容不存在")
     redis_client.set(f"question:views:{id}", value=existing.view_count, nx=True)
     view_count = redis_client.incr(f"question:views:{id}") # incr等于increment
-
-    author = db.get(User,existing.author_id)
     cache_body = {
         "id": existing.id,
-        "author_name": author.username if author else "未知用户",
+        "author_name": existing.author.username if existing.author else "未知用户",
         "title": existing.title,
         "content": existing.content,
         "answer_count": existing.answer_count,

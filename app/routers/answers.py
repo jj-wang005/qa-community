@@ -1,7 +1,7 @@
 from typing import List
 
 from fastapi import APIRouter, Path, Depends, HTTPException, Query
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 
 from app.core.deps import get_current_user
 from app.core.paginate import paginate
@@ -51,15 +51,14 @@ async def list_answers(
         page: int = Query(1, ge=1, description="页码从1开始"),
         size: int = Query(10, ge=1, le=100, description="每页的内容数量"),
 ):
-    answers = db.query(Answer).filter(Answer.question_id == question_id).order_by(Answer.created_at.desc())
+    answers = db.query(Answer).options(joinedload(Answer.author)).filter(Answer.question_id == question_id).order_by(Answer.created_at.desc())
     answers = paginate(answers, page, size)
     result = []
     for q in answers:
-        author = db.get(User, q.author_id)
         result.append({
             "id": q.id,
             "question_id": q.question_id,
-            "author_name": author.username if author else "未知用户",
+            "author_name": q.author.username if q.author else "未知用户",
             "content": q.content,
             "like_count": q.like_count,
             "is_accepted": q.is_accepted,

@@ -1,7 +1,7 @@
 from datetime import datetime
 
 from sqlalchemy import String, Text, Integer, Boolean, DateTime, func, ForeignKey
-from sqlalchemy.orm import Mapped, mapped_column
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.base import Base
 
@@ -12,6 +12,7 @@ class Answer(Base):
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
     question_id: Mapped[int] = mapped_column(ForeignKey("questions.id", ondelete="CASCADE"), index=True)
     author_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    author: Mapped["User"] = relationship(foreign_keys="Answer.author_id")
     content: Mapped[str] = mapped_column(Text, nullable=False)
     like_count: Mapped[int] = mapped_column(Integer, server_default="0")
     is_accepted: Mapped[bool] = mapped_column(Boolean, server_default="0")
