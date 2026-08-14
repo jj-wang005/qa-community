@@ -1,3 +1,5 @@
+from enum import Enum
+
 from pydantic import BaseModel, Field
 from datetime import datetime
 
@@ -12,3 +14,8 @@ class AnswerOut(BaseModel):
     like_count: int
     is_accepted: bool
     created_at: datetime
+
+class AnswerSort(str, Enum):
+    hot = "hot"
+    new = "new"
+    accepted = "accepted"

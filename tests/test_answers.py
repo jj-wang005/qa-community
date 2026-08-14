@@ -88,6 +88,62 @@ def test_list_answers_respects_page_size(client, auth):
     assert len(resp.json()) == 2
 
 
+def test_list_answers_accepted_only_returns_accepted(client, auth):
+    """sort=accepted 时，只返回被采纳的回答。"""
+    token = auth(username="accepted_user")
+    client.post(
+        "/questions",
+        json={"title": "题", "content": "内容"},
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    qid = client.get("/questions?sort=new").json()[0]["id"]
+
+    # 发 3 条回答，只采纳其中 1 条
+    aids = []
+    for i in range(3):
+        aid = client.post(
+            f"/questions/{qid}/answers",
+            json={"content": f"回答{i}"},
+            headers={"Authorization": f"Bearer {token}"},
+        ).json()["id"]
+        aids.append(aid)
+    client.post(f"/answers/{aids[0]}/accept", headers={"Authorization": f"Bearer {token}"})
+
+    resp = client.get(f"/questions/{qid}/answers?sort=accepted")
+    assert resp.status_code == 200
+    assert len(resp.json()) == 1
+    assert resp.json()[0]["id"] == aids[0]
+    assert resp.json()[0]["is_accepted"] is True
+
+
+def test_list_answers_hot_sorts_accepted_first(client, auth):
+    """sort=hot 时，被采纳的回答应排在前面（is_accepted 有 50 分加成）。"""
+    token = auth(username="hot_user")
+    client.post(
+        "/questions",
+        json={"title": "题", "content": "内容"},
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    qid = client.get("/questions?sort=new").json()[0]["id"]
+
+    # 发 2 条回答：回答 A 0 赞未采纳，回答 B 0 赞但被采纳 → B 应排前面
+    aid_a = client.post(
+        f"/questions/{qid}/answers",
+        json={"content": "A"},
+        headers={"Authorization": f"Bearer {token}"},
+    ).json()["id"]
+    aid_b = client.post(
+        f"/questions/{qid}/answers",
+        json={"content": "B"},
+        headers={"Authorization": f"Bearer {token}"},
+    ).json()["id"]
+    client.post(f"/answers/{aid_b}/accept", headers={"Authorization": f"Bearer {token}"})
+
+    resp = client.get(f"/questions/{qid}/answers?sort=hot")
+    assert resp.status_code == 200
+    assert resp.json()[0]["id"] == aid_b
+
+
 def test_register_login_and_accept_answer(client, auth):
     """发问题 → 发回答 → 采纳回答 → 成功，且采纳真的生效。"""
     token = auth(username="accepter")
