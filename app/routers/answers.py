@@ -1,3 +1,4 @@
+import json
 from typing import List
 
 from fastapi import APIRouter, Path, Depends, HTTPException, Query
@@ -5,6 +6,7 @@ from sqlalchemy.orm import Session, joinedload
 
 from app.core.deps import get_current_user
 from app.core.paginate import paginate
+from app.core.redis import redis_client
 from app.db.base import get_db
 from app.models import User, Question, Answer
 from app.schemas.answers import AnswerOut, AnswerCreate
@@ -51,11 +53,16 @@ async def list_answers(
         page: int = Query(1, ge=1, description="页码从1开始"),
         size: int = Query(10, ge=1, le=100, description="每页的内容数量"),
 ):
+    cache_key = f"answers:{question_id}:{page}:{size}"
+    data = redis_client.get(cache_key)
+    if data:
+        result = json.loads(data)
+        return result
     answers = db.query(Answer).options(joinedload(Answer.author)).filter(Answer.question_id == question_id).order_by(Answer.created_at.desc())
     answers = paginate(answers, page, size)
-    result = []
+    cache_body = []
     for q in answers:
-        result.append({
+        cache_body.append({
             "id": q.id,
             "question_id": q.question_id,
             "author_name": q.author.username if q.author else "未知用户",
@@ -65,7 +72,9 @@ async def list_answers(
             "created_at": q.created_at,
         })
 
-    return result
+    redis_client.set(cache_key, json.dumps(cache_body, default=str), ex=60)
+
+    return cache_body
 
 @answer_router.post("/{answer_id}/accept")
 async def accepte_answers(
