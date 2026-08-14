@@ -32,4 +32,24 @@ async def like(
 
     return{"msg": "点赞成功","点赞数量": answer.like_count}
 
+@router.delete("/{answer_id}")
+async def delete_like(
+        answer_id: int = Path(...,ge=0),
+        db:Session = Depends(get_db),
+        current_user: User = Depends(get_current_user)
+):
+    like = db.query(Like).filter(Like.answer_id == answer_id , Like.user_id == current_user.id ).first()
+    if like:
+        db.delete(like)
+    else:
+        raise HTTPException(status_code=404, detail="糟糕，评论不见了")
+    answer = db.get(Answer, answer_id)
+    if not answer:
+        raise HTTPException(status_code=404, detail="回答不存在")
+    answer.like_count -= 1
+    db.commit()
+    for k in redis_client.keys(f"answers:{answer.question_id}:*"):
+        redis_client.delete(k)
+
+    return{"msg": "取消点赞成功","点赞数量": answer.like_count}
 

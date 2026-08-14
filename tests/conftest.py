@@ -85,6 +85,17 @@ def _isolate_redis():
 
 
 @pytest.fixture()
+def db_session(test_engine):
+    """返回一个指向测试库的会话，供测试直接查库验证数据（如 like_count 落库）。"""
+    TestSessionLocal = sessionmaker(bind=test_engine, autoflush=False, autocommit=False)
+    db = TestSessionLocal()
+    try:
+        yield db
+    finally:
+        db.close()
+
+
+@pytest.fixture()
 def client(test_engine):
     """返回一个 TestClient，它的 get_db 依赖被改道到测试库。
     dependency_overrides 是 FastAPI 专门为测试提供的「后门」：
