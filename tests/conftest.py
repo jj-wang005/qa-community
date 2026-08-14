@@ -23,6 +23,7 @@ from app.core.config import settings
 from app.db.base import Base, get_db
 from app.main import app
 from app.routers import questions as questions_router
+from app.routers import answers as answers_router
 # noqa: F401 是告诉 linter「这几行 import 了但没用，别报警」
 # 必须 import，否则 Base.metadata 里没这几张表，create_all 不会建它们
 from app.models import User, Question, Answer, Like  # noqa: F401
@@ -70,11 +71,16 @@ def _isolate_redis():
     fake = redis.Redis(host="localhost", port=6379, db=15, decode_responses=True)
     fake.flushdb()
 
-    # 把 questions 路由模块里的 redis_client 临时换成 db=15 的实例，测试结束再换回来
-    original = questions_router.redis_client
-    questions_router.redis_client = fake
+    # 所有路由模块各自 import 了一份 redis_client 引用，必须逐个替换，测试结束再换回来
+    original_clients = {
+        questions_router: questions_router.redis_client,
+        answers_router: answers_router.redis_client,
+    }
+    for mod in original_clients:
+        mod.redis_client = fake
     yield
-    questions_router.redis_client = original
+    for mod, original in original_clients.items():
+        mod.redis_client = original
     fake.flushdb()
 
 
@@ -95,7 +101,7 @@ def client(test_engine):
 
     app.dependency_overrides[get_db] = override_get_db
 
-    # with 语句会触发 app 的 startup 事件（对真实库 create_all，但真实库表早已存在，create_all 会跳过已存在的表，无害）
+    # with 语句会触发 app 的 startup 事件
     with TestClient(app) as c:
         yield c
 

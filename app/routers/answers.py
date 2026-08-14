@@ -35,6 +35,8 @@ async def create_answer(
     existing.answer_count += 1
     db.add(answer)
     db.commit()
+
+    redis_client.delete(f"question:{question_id}")
     author = db.get(User, answer.author_id)
     return {
         "id": answer.id,
