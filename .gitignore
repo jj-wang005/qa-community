@@ -21,5 +21,8 @@ CLAUDE.md
 # 本地测试脚本（一次性工具，不提交）
 scripts/
 
+# 性能压测报告（个人记录，不提交）
+docs/
+
 # pytest 缓存（机器生成的临时文件，不提交）
 .pytest_cache/
