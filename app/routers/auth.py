@@ -9,7 +9,7 @@ from app.models.user import User
 router = APIRouter(prefix="/auth", tags=["认证"])
 
 @router.post("/register")
-async def register(payload: RegisterUser, db: Session = Depends(get_db)):
+def register(payload: RegisterUser, db: Session = Depends(get_db)):
     exist = db.query(User).filter(User.username == payload.username).first()
     if exist:
             raise HTTPException(status_code=400, detail="用户已存在")
@@ -19,7 +19,7 @@ async def register(payload: RegisterUser, db: Session = Depends(get_db)):
     return {"message": "注册成功"}
 
 @router.post("/login")
-async def login(payload: RegisterUser, db: Session = Depends(get_db)):
+def login(payload: RegisterUser, db: Session = Depends(get_db)):
     user = db.query(User).filter(User.username == payload.username).first()
     if not user:
         raise HTTPException(status_code=401, detail="用户名或密码错误")

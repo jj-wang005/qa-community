@@ -10,7 +10,7 @@ from app.models.like import Like
 router = APIRouter(prefix="/like", tags=["点赞"])
 
 @router.post("/{answer_id}")
-async def like(
+def like(
         answer_id: int = Path(...,ge=0),
         db: Session = Depends(get_db),
         current_user: User = Depends(get_current_user),
@@ -33,7 +33,7 @@ async def like(
     return{"msg": "点赞成功","点赞数量": answer.like_count}
 
 @router.delete("/{answer_id}")
-async def delete_like(
+def delete_like(
         answer_id: int = Path(...,ge=0),
         db:Session = Depends(get_db),
         current_user: User = Depends(get_current_user)

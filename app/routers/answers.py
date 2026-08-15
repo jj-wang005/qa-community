@@ -16,7 +16,7 @@ router = APIRouter(prefix="/questions", tags=["回答"])
 answer_router = APIRouter(prefix="/answers", tags=["回答"])
 
 @router.post("/{question_id}/answers", response_model=AnswerOut)
-async def create_answer(
+def create_answer(
         payload: AnswerCreate,
         question_id: int = Path(..., gt=0),
         db: Session = Depends(get_db),
@@ -50,7 +50,7 @@ async def create_answer(
     }
 
 @router.get("/{question_id}/answers", response_model=List[AnswerOut])
-async def list_answers(
+def list_answers(
         sort:AnswerSort = AnswerSort.hot,
         question_id: int = Path(..., gt=0, description = "填入帖子id即可获取评论"),
         db: Session = Depends(get_db),
@@ -89,7 +89,7 @@ async def list_answers(
     return cache_body
 
 @answer_router.post("/{answer_id}/accept")
-async def accepte_answers(
+def accepte_answers(
         answer_id: int = Path(..., gt=0, description="接受你喜欢的评论"),
         db: Session = Depends(get_db),
         current_user: User = Depends(get_current_user),

@@ -16,7 +16,7 @@ from app.schemas.questions import CreateQuestion, QuestionOut, QuestionSort
 router = APIRouter(prefix="/questions", tags=["问题"])
 
 @router.post("")
-async def create_question(
+def create_question(
         payload: CreateQuestion,
         db:Session = Depends(get_db),
         current_user:User = Depends(get_current_user)
@@ -33,7 +33,7 @@ async def create_question(
     return {"msg": "成功发布"}
 
 @router.get("",  response_model=List[QuestionOut])
-async def list_questions(
+def list_questions(
         sort: QuestionSort = QuestionSort.hot,
         db: Session = Depends(get_db),
         page: int = Query(1,ge=1,description="页码从1开始"),
@@ -75,7 +75,7 @@ async def list_questions(
     return result
 
 @router.get("/{id}",  response_model=QuestionOut)
-async def get_questions(id:int = Path(...,gt = 0, description="填写想要查询的新闻id"),
+def get_questions(id:int = Path(...,gt = 0, description="填写想要查询的新闻id"),
                         db: Session = Depends(get_db)
                         ):
 
