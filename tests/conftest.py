@@ -128,7 +128,7 @@ def auth(client):
     所有测试文件都能直接用（conftest 的 fixture 自动可见），不用 import。
     """
     def _register_and_login(username="alice", password="secret123"):
-        client.post("/auth/register", json={"username": username, "password": password})
-        resp = client.post("/auth/login", json={"username": username, "password": password})
+        client.post("/api/v1/auth/register", json={"username": username, "password": password})
+        resp = client.post("/api/v1/auth/login", json={"username": username, "password": password})
         return resp.json()["token"]
     return _register_and_login

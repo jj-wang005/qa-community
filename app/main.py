@@ -1,7 +1,7 @@
 import asyncio
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI, HTTPException
+from fastapi import APIRouter, FastAPI, HTTPException
 from fastapi.exceptions import RequestValidationError
 
 from app.core.exceptions import (
@@ -38,18 +38,21 @@ async def lifespan(app: FastAPI):
     yield
 
 
-app = FastAPI(title="问答社区", lifespan=lifespan)
+app = FastAPI(title="问答社区", version="1.0.0", lifespan=lifespan)
 
 app.add_exception_handler(HTTPException, http_exception_handler)
 app.add_exception_handler(RequestValidationError, validation_exception_handler)
 app.add_exception_handler(Exception, unhandled_exception_handler)
 
-# 挂载各路由模块
-app.include_router(auth.router)
-app.include_router(questions.router)
-app.include_router(answers.router)
-app.include_router(answers.answer_router)
-app.include_router(like.router)
+# API v1 路由：所有接口挂在 /api/v1 前缀下，后续新增 v2 时新旧并存
+api_v1 = APIRouter(prefix="/api/v1")
+api_v1.include_router(auth.router)
+api_v1.include_router(questions.router)
+api_v1.include_router(answers.router)
+api_v1.include_router(answers.answer_router)
+api_v1.include_router(like.router)
+
+app.include_router(api_v1)
 
 @app.get("/")
 async def root():
