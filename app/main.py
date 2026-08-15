@@ -1,8 +1,14 @@
 import asyncio
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException
+from fastapi.exceptions import RequestValidationError
 
+from app.core.exceptions import (
+    http_exception_handler,
+    validation_exception_handler,
+    unhandled_exception_handler,
+)
 from app.core.redis import redis_client
 from app.models import User, Question, Answer, Like  # noqa: F401 确保模型注册进 Base.metadata
 from app.db.base import Base, engine, SessionLocal
@@ -34,13 +40,16 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(title="问答社区", lifespan=lifespan)
 
+app.add_exception_handler(HTTPException, http_exception_handler)
+app.add_exception_handler(RequestValidationError, validation_exception_handler)
+app.add_exception_handler(Exception, unhandled_exception_handler)
+
 # 挂载各路由模块
 app.include_router(auth.router)
 app.include_router(questions.router)
 app.include_router(answers.router)
 app.include_router(answers.answer_router)
 app.include_router(like.router)
-
 
 @app.get("/")
 async def root():
