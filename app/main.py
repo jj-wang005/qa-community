@@ -17,7 +17,7 @@ from app.routers import auth, questions, answers, like
 async def sync_view_count():
     while True:
         await asyncio.sleep(60)
-        keys = redis_client.keys(f"question:views:*")
+        keys = redis_client.scan_iter(f"question:views:*")
         db = SessionLocal()
         try:
             for k in keys:

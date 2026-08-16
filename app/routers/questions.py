@@ -26,9 +26,8 @@ def create_question(
     db.add(question)
     db.commit()
 
-    for k in redis_client.keys("questions:new:*"):
+    for k in redis_client.scan_iter("questions:new:*"):
         redis_client.delete(k)
-        # print("已经删掉了", k)
 
     return {"msg": "成功发布"}
 

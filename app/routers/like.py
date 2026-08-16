@@ -27,7 +27,7 @@ def like(
     db.add(new_like)
     db.commit()
 
-    for k in redis_client.keys(f"answers:{answer.question_id}:*"):
+    for k in redis_client.scan_iter(f"answers:{answer.question_id}:*"):
         redis_client.delete(k)
 
     return{"msg": "点赞成功","点赞数量": answer.like_count}
@@ -48,7 +48,7 @@ def delete_like(
         raise HTTPException(status_code=404, detail="回答不存在")
     answer.like_count -= 1
     db.commit()
-    for k in redis_client.keys(f"answers:{answer.question_id}:*"):
+    for k in redis_client.scan_iter(f"answers:{answer.question_id}:*"):
         redis_client.delete(k)
 
     return{"msg": "取消点赞成功","点赞数量": answer.like_count}

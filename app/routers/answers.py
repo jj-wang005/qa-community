@@ -104,7 +104,7 @@ def accepte_answers(
         raise HTTPException(status_code=403, detail="只有作者才可以采纳评论")
     db.commit()
 
-    for k in redis_client.keys(f"answers:{answers.question_id}:*"):
+    for k in redis_client.scan_iter(f"answers:{answers.question_id}:*"):
         redis_client.delete(k)
 
     return {"接受": answers.is_accepted}
