@@ -15,14 +15,20 @@ def verify_password(plain_password, hashed_password) -> bool:
 def create_access_token(user_id: int) -> str:
     """签发 JWT token，载荷里放 user_id 和过期时间"""
     expire = datetime.now() + timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
-    to_encode = {"sub": str(user_id), "exp": expire}
+    to_encode = {"sub": str(user_id),"type":"access", "exp": expire}
     return jwt.encode(to_encode, settings.SECRET_KEY, algorithm=settings.ALGORITHM)
 
+def create_refresh_token(user_id: int) -> str:
+    expire = datetime.now() + timedelta(days=settings.REFRESH_TOKEN_EXPIRE_DAYS)
+    to_encode = {"sub": str(user_id),"type":"refresh", "exp": expire}
+    return jwt.encode(to_encode, settings.SECRET_KEY, algorithm=settings.ALGORITHM)
 
-def decode_access_token(token: str) -> int | None:
+def decode_token(token: str, expected_type: str) -> int | None:
     """解析 token，成功返回 user_id，失败返回 None"""
     try:
         payload = jwt.decode(token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM])
+        if payload.get("type") != expected_type:
+            return None
         return int(payload.get("sub"))
     except Exception:
         return None

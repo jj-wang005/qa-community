@@ -130,5 +130,5 @@ def auth(client):
     def _register_and_login(username="alice", password="secret123"):
         client.post("/api/v1/auth/register", json={"username": username, "password": password})
         resp = client.post("/api/v1/auth/login", json={"username": username, "password": password})
-        return resp.json()["token"]
+        return resp.json()["access_token"]
     return _register_and_login

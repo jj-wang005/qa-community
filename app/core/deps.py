@@ -2,7 +2,7 @@ from fastapi import Depends, HTTPException
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from sqlalchemy.orm import Session
 
-from app.core.security import decode_access_token
+from app.core.security import decode_token
 from app.db.base import get_db
 from app.models.user import User
 
@@ -16,7 +16,7 @@ def get_current_user(
 ) -> User:
     """从请求头解析 token，返回当前登录用户；无效则 401"""
     token = credentials.credentials
-    user_id = decode_access_token(token)
+    user_id = decode_token(token, "access")
     if user_id is None:
         raise HTTPException(status_code=401, detail="token 无效或已过期")
 
