@@ -103,3 +103,27 @@ def get_questions(id:int = Path(...,gt = 0, description="填写想要查询的�
     redis_client.set(cache_key, json.dumps(cache_body, default=str), ex=60)
     cache_body["view_count"] = view_count
     return cache_body
+
+
+@router.delete("/{question_id}")
+def delete_question(
+        question_id: int = Path(..., gt=0),
+        db: Session = Depends(get_db),
+        current_user: User = Depends(get_current_user),
+):
+    question = db.get(Question, question_id)
+    if not question:
+        raise HTTPException(status_code=404, detail="内容不存在")
+    if question.author_id != current_user.id:
+        raise HTTPException(status_code=403, detail="只有作者才可以删除问题")
+
+    db.delete(question)
+    db.commit()
+
+    redis_client.delete(f"question:{question_id}", f"question:views:{question_id}")
+    for key in redis_client.scan_iter(f"answers:*:{question_id}:*"):
+        redis_client.delete(key)
+    for key in redis_client.scan_iter("questions:*"):
+        redis_client.delete(key)
+
+    return {"msg": "删除成功"}

@@ -4,6 +4,8 @@ tests/test_answers.py —— 回答接口的自动化测试
 覆盖：发回答（鉴权/404/成功）、answer_count 联动、回答分页、采纳、越权防护
 """
 
+from app.models import Answer, Like
+
 
 def test_post_answer_without_token_returns_401(client):
     """没带 token 发回答 → 被 get_current_user 拦下，返回 401。"""
@@ -190,3 +192,69 @@ def test_cannot_accept_others_answer(client, auth):
         headers={"Authorization": f"Bearer {token_b}"},
     )
     assert resp.status_code == 403
+
+
+def test_delete_answer_without_token_returns_401(client):
+    resp = client.delete("/api/v1/answers/1")
+    assert resp.status_code == 401
+
+
+def test_answer_author_can_delete_answer_and_decrement_count(client, auth, db_session):
+    token = auth(username="answer_owner")
+    client.post(
+        "/api/v1/questions",
+        json={"title": "待回答问题", "content": "内容"},
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    qid = client.get("/api/v1/questions?sort=new").json()[0]["id"]
+    aid = client.post(
+        f"/api/v1/questions/{qid}/answers",
+        json={"content": "待删除回答"},
+        headers={"Authorization": f"Bearer {token}"},
+    ).json()["id"]
+    client.get(f"/api/v1/questions/{qid}")
+    client.get(f"/api/v1/questions/{qid}/answers?sort=hot")
+    client.post(f"/api/v1/like/{aid}", headers={"Authorization": f"Bearer {token}"})
+
+    resp = client.delete(
+        f"/api/v1/answers/{aid}",
+        headers={"Authorization": f"Bearer {token}"},
+    )
+
+    assert resp.status_code == 200
+    assert client.get(f"/api/v1/questions/{qid}/answers?sort=hot").json() == []
+    assert client.get(f"/api/v1/questions/{qid}").json()["answer_count"] == 0
+    assert db_session.get(Answer, aid) is None
+    assert db_session.query(Like).filter_by(answer_id=aid).first() is None
+
+
+def test_non_author_cannot_delete_answer(client, auth):
+    owner_token = auth(username="answer_owner_a")
+    client.post(
+        "/api/v1/questions",
+        json={"title": "别人的问题", "content": "内容"},
+        headers={"Authorization": f"Bearer {owner_token}"},
+    )
+    qid = client.get("/api/v1/questions?sort=new").json()[0]["id"]
+    answer_id = client.post(
+        f"/api/v1/questions/{qid}/answers",
+        json={"content": "别人的回答"},
+        headers={"Authorization": f"Bearer {owner_token}"},
+    ).json()["id"]
+    other_token = auth(username="answer_owner_b")
+
+    resp = client.delete(
+        f"/api/v1/answers/{answer_id}",
+        headers={"Authorization": f"Bearer {other_token}"},
+    )
+
+    assert resp.status_code == 403
+
+
+def test_delete_missing_answer_returns_404(client, auth):
+    token = auth(username="missing_answer")
+    resp = client.delete(
+        "/api/v1/answers/99999",
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert resp.status_code == 404

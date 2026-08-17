@@ -108,3 +108,31 @@ def accepte_answers(
         redis_client.delete(k)
 
     return {"接受": answers.is_accepted}
+
+
+@answer_router.delete("/{answer_id}")
+def delete_answer(
+        answer_id: int = Path(..., gt=0),
+        db: Session = Depends(get_db),
+        current_user: User = Depends(get_current_user),
+):
+    answer = db.get(Answer, answer_id)
+    if not answer:
+        raise HTTPException(status_code=404, detail="糟糕，评论不见了")
+    if answer.author_id != current_user.id:
+        raise HTTPException(status_code=403, detail="只有作者才可以删除回答")
+
+    question_id = answer.question_id
+    question = db.get(Question, question_id)
+    if question:
+        question.answer_count = max(0, question.answer_count - 1)
+    db.delete(answer)
+    db.commit()
+
+    redis_client.delete(f"question:{question_id}")
+    for key in redis_client.scan_iter(f"answers:*:{question_id}:*"):
+        redis_client.delete(key)
+    for key in redis_client.scan_iter("questions:*"):
+        redis_client.delete(key)
+
+    return {"msg": "删除成功"}
