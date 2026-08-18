@@ -1,7 +1,7 @@
 from jose import jwt
 from passlib.context import CryptContext
 from datetime import datetime, timedelta
-
+import uuid
 from app.core.config import settings
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
@@ -19,18 +19,21 @@ def create_access_token(user_id: int) -> str:
     return jwt.encode(to_encode, settings.SECRET_KEY, algorithm=settings.ALGORITHM)
 
 def create_refresh_token(user_id: int) -> str:
+    jti = uuid.uuid4().hex
     expire = datetime.now() + timedelta(days=settings.REFRESH_TOKEN_EXPIRE_DAYS)
-    to_encode = {"sub": str(user_id),"type":"refresh", "exp": expire}
-    return jwt.encode(to_encode, settings.SECRET_KEY, algorithm=settings.ALGORITHM)
+    to_encode = {"sub": str(user_id),"type":"refresh", "exp": expire, "jti":jti}
+    token = jwt.encode(to_encode, settings.SECRET_KEY, algorithm=settings.ALGORITHM)
+    return token, jti
 
-def decode_token(token: str, expected_type: str) -> int | None:
+def decode_token(token: str, expected_type: str) -> tuple[str, str]:
     """解析 token，成功返回 user_id，失败返回 None"""
     try:
         payload = jwt.decode(token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM])
+        jti = payload.get("jti")
         if payload.get("type") != expected_type:
-            return None
-        return int(payload.get("sub"))
+            return (None,None)
+        return int(payload.get("sub")),jti
     except Exception:
-        return None
+        return (None,None)
 
 
