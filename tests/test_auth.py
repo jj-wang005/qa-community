@@ -1,8 +1,9 @@
 """
 tests/test_auth.py —— 双 token 认证（refresh 接口）的自动化测试
-refresh 是双 token 的安全闭环点：access 只能调接口，refresh 只能换新 access，
-靠 payload 里的 type 字段区分。这里的测试专门验证「换卡柜台」的规矩：
-能换的、不能换的（type 混用）、假卡的。
+refresh 是双 token 的安全闭环点：access 只能调接口，refresh 能换新的一对 token。
+采用轮换式 + 会话族追踪：每次刷新换新 refresh（family_id 不变），旧 token 一旦重放，
+判定被盗 → 吊销整个会话族。这里测试「换卡柜台」的规矩：
+能换的、不能换的（type 混用）、假卡、重放卡。
 """
 
 
@@ -48,3 +49,20 @@ def test_refresh_with_garbage_token_returns_401(client):
     """乱码 refresh → 验签失败 → 401。"""
     resp = client.post("/api/v1/auth/refresh", json={"refresh_token": "not.a.jwt"})
     assert resp.status_code == 401
+
+
+def test_reused_refresh_token_revokes_family(client):
+    """同一把旧 refresh 重放 → 判定重放 → 401，且整个会话族被吊销。"""
+    data = _login(client)
+    # 第一次正常刷新，轮换出一把新 refresh
+    resp = client.post("/api/v1/auth/refresh", json={"refresh_token": data["refresh_token"]})
+    assert resp.status_code == 200
+    new_refresh = resp.json()["refresh_token"]
+
+    # 旧 refresh 重放：session 里记录的是新 jti，对不上 → 重放检测
+    resp2 = client.post("/api/v1/auth/refresh", json={"refresh_token": data["refresh_token"]})
+    assert resp2.status_code == 401
+
+    # 家族被吊销：连最新的 refresh 也一起失效，必须重新登录
+    resp3 = client.post("/api/v1/auth/refresh", json={"refresh_token": new_refresh})
+    assert resp3.status_code == 401

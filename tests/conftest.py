@@ -24,6 +24,7 @@ from app.db.base import Base, get_db
 from app.main import app
 from app.routers import questions as questions_router
 from app.routers import answers as answers_router
+from app.routers import auth as auth_router
 # noqa: F401 是告诉 linter「这几行 import 了但没用，别报警」
 # 必须 import，否则 Base.metadata 里没这几张表，create_all 不会建它们
 from app.models import User, Question, Answer, Like  # noqa: F401
@@ -75,6 +76,7 @@ def _isolate_redis():
     original_clients = {
         questions_router: questions_router.redis_client,
         answers_router: answers_router.redis_client,
+        auth_router: auth_router.redis_client,
     }
     for mod in original_clients:
         mod.redis_client = fake
