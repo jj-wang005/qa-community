@@ -12,7 +12,8 @@ from app.core.exceptions import (
 from app.core.redis import redis_client
 from app.models import User, Question, Answer, Like  # noqa: F401 确保模型注册进 Base.metadata
 from app.db.base import Base, engine, SessionLocal
-from app.routers import auth, questions, answers, like
+from app.routers import auth, questions, answers, like, ai
+
 
 async def sync_view_count():
     while True:
@@ -51,6 +52,7 @@ api_v1.include_router(questions.router)
 api_v1.include_router(answers.router)
 api_v1.include_router(answers.answer_router)
 api_v1.include_router(like.router)
+api_v1.include_router(ai.router)
 
 app.include_router(api_v1)
 
