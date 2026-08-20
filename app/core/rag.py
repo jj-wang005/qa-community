@@ -30,12 +30,15 @@ def search(query: str, top_k: int = 5) -> List[Dict]:
 
 def build_prompt(hits:List[Dict]) -> str:
     if not hits:
-        return "你是问答社区智能助手。请优先依据下面检索到的社区资料回答用户问题，资料不足时明确说明，不要编造。"
+        return ("你是问答社区智能助手。请依据你自身的知识回答用户问题。"
+                "如果问题涉及本社区资料但你没有检索到，请明确说明资料不足，不要编造。")
     context = "\n\n".join(
         f"【来源：{hit['source'].get('title', '未知')}】\n{hit['content']}"
         for hit in hits
     )
     return (
-        "你是问答社区智能助手。请优先依据下面检索到的社区资料回答用户问题，资料不足时明确说明，不要编造。\n\n"
-        f"【检索到的资料】\n{context}\n\n"
+        "你是问答社区智能助手。请优先依据下面检索到的社区资料回答用户问题。"
+        "资料可能与问题相关也可能无关，只采用与问题相关的资料，并标注其来源；"
+        "若资料不足，请明确说明，不要编造。\n\n"
+        f"【检索到的资料】\n{context}"
     )
