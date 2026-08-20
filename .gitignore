@@ -9,10 +9,10 @@ __pycache__/
 .venv/
 venv/
 
-# 环境变量 / 敏感配置（把 SECRET_KEY、数据库密码等挪进 .env 自动忽略）
+# 环境变量 / 敏感配置
 .env
 
-# 个人学习笔记（进度/踩坑/亮点/八股/更新指引，全部不对外）
+# 个人学习笔记
 notes/
 
 # 个人配置说明
@@ -21,11 +21,14 @@ CLAUDE.md
 # Claude Code 自身配置
 .claude/
 
-# 本地测试脚本（一次性工具，不提交）
+# 本地测试脚本（一次性工具）
 scripts/
 
-# 性能压测报告（个人记录，不提交）
+# 性能压测报告（个人记录）
 docs/
 
-# pytest 缓存（机器生成的临时文件，不提交）
+# RAG 向量数据库（由 build_kb.py 从 MySQL 派生，可随时重建）
+chroma_db/
+
+# pytest 缓存
 .pytest_cache/

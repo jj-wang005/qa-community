@@ -6,6 +6,7 @@ from fastapi.responses import StreamingResponse
 from openai import AsyncOpenAI
 
 from app.core.config import settings
+from app.core.rag import search, build_prompt
 from app.core.redis import redis_client
 from app.schemas.ai import ChatRequest
 
@@ -25,9 +26,12 @@ async def chat(payload: ChatRequest):
         data = redis_client.get(cache_key)
         history = json.loads(data) if data else []
         history.append({"role": "user", "content": payload.question})
+        hits = search(payload.question)
+        system_content = build_prompt(hits)
+        messages = [{"role": "system", "content": system_content}] + history
         stream = await client.chat.completions.create(
             model="mimo-v2.5",
-            messages= history,
+            messages= messages,
             stream=True,
         )
         full_answer = ""
