@@ -24,3 +24,16 @@ def get_current_user(
     if user is None:
         raise HTTPException(status_code=401, detail="用户不存在")
     return user
+
+
+def get_current_user_optional(
+    db: Session = Depends(get_db),
+    credentials: HTTPAuthorizationCredentials | None = Depends(HTTPBearer(auto_error=False)),
+) -> User | None:
+    """解析 token，返回当前登录用户；未携带 token 或 token 无效时返回 None（不报错）"""
+    if credentials is None:
+        return None
+    user_id, _, _ = decode_token(credentials.credentials, "access")
+    if user_id is None:
+        return None
+    return db.get(User, user_id)

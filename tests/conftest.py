@@ -25,6 +25,7 @@ from app.main import app
 from app.routers import questions as questions_router
 from app.routers import answers as answers_router
 from app.routers import auth as auth_router
+from app.core import tools as tools_module
 # noqa: F401 是告诉 linter「这几行 import 了但没用，别报警」
 # 必须 import，否则 Base.metadata 里没这几张表，create_all 不会建它们
 from app.models import User, Question, Answer, Like  # noqa: F401
@@ -77,6 +78,7 @@ def _isolate_redis():
         questions_router: questions_router.redis_client,
         answers_router: answers_router.redis_client,
         auth_router: auth_router.redis_client,
+        tools_module: tools_module.redis_client,
     }
     for mod in original_clients:
         mod.redis_client = fake
@@ -84,6 +86,18 @@ def _isolate_redis():
     for mod, original in original_clients.items():
         mod.redis_client = original
     fake.flushdb()
+
+
+@pytest.fixture(autouse=True)
+def _tools_use_test_db(test_engine):
+    """tools.py 里的工具直接用 SessionLocal() 建会话（不走 get_db 依赖），
+    必须手动改道到测试库，否则 like_answer 这类写工具会写进真实库 qa_db。
+    """
+    TestSessionLocal = sessionmaker(bind=test_engine, autoflush=False, autocommit=False)
+    original_db = tools_module.SessionLocal
+    tools_module.SessionLocal = TestSessionLocal
+    yield
+    tools_module.SessionLocal = original_db
 
 
 @pytest.fixture()

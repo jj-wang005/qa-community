@@ -1,25 +1,45 @@
 import json
 import uuid
 
-from fastapi import APIRouter
+from fastapi import APIRouter, Depends
 from fastapi.responses import StreamingResponse
-from openai import AsyncOpenAI
+from langchain_openai import ChatOpenAI
+from langgraph.prebuilt import create_react_agent
 
 from app.core.config import settings
-from app.core.rag import search, build_prompt
+from app.core.deps import get_current_user_optional
+from app.core.rag import build_prompt, search
 from app.core.redis import redis_client
+from app.core.tools import (
+    get_answers,
+    get_location,
+    get_time,
+    get_weather,
+    make_write_tools,
+    search_question,
+)
+from app.models import User
 from app.schemas.ai import ChatRequest
 
 router = APIRouter(prefix="/ai", tags=["AI助手"])
-client = AsyncOpenAI(
+
+llm = ChatOpenAI(
+    model="mimo-v2.5",
     api_key=settings.XIAOMI_MIMO_API_KEY,
-    # base_url="https://api.deepseek.com",
-    base_url="https://api.xiaomimimo.com/v1"
+    base_url="https://api.xiaomimimo.com/v1",
 )
 
 
 @router.post("/chat")
-async def chat(payload: ChatRequest):
+async def chat(
+    payload: ChatRequest,
+    user: User | None = Depends(get_current_user_optional),
+):
+    # 读工具始终可用；写工具仅在登录后注册，且用户身份由后端绑定，LLM 不可见
+    tools = [search_question, get_weather, get_time, get_location, get_answers]
+    if user is not None:
+        tools += make_write_tools(user.id)
+
     async def generate():
         sid = payload.session_id or str(uuid.uuid4())
         cache_key = f"chat:history:{sid}"
@@ -28,20 +48,23 @@ async def chat(payload: ChatRequest):
         history.append({"role": "user", "content": payload.question})
         hits = search(payload.question)
         system_content = build_prompt(hits)
-        messages = [{"role": "system", "content": system_content}] + history
-        stream = await client.chat.completions.create(
-            model="mimo-v2.5",
-            messages= messages,
-            stream=True,
-        )
+        inputs = {"messages": [{"role": "system", "content": system_content}] + history}
+
+        agent = create_react_agent(model=llm, tools=tools)
+
         full_answer = ""
-        async for chunk in stream:
-            if not chunk.choices:
-                continue
-            content = chunk.choices[0].delta.content
-            if content:
-                full_answer += content
-                yield f"data: {content}\n\n"
+        round_is_tool = False
+        async for event in agent.astream_events(inputs, version="v2"):
+            etype = event["event"]
+            if etype == "on_chat_model_start":
+                round_is_tool = False
+            elif etype == "on_chat_model_stream":
+                chunk = event["data"]["chunk"]
+                if chunk.tool_call_chunks:
+                    round_is_tool = True
+                elif isinstance(chunk.content, str) and chunk.content and not round_is_tool:
+                    full_answer += chunk.content
+                    yield f"data: {chunk.content}\n\n"
         yield f"data: [SESSION_ID]:{sid}\n\n"
         history.append({"role": "assistant", "content": full_answer})
         redis_client.setex(cache_key, 1800, json.dumps(history, ensure_ascii=False))
