@@ -8,7 +8,6 @@ from langgraph.prebuilt import create_react_agent
 
 from app.core.config import settings
 from app.core.deps import get_current_user_optional
-from app.core.rag import build_prompt, search
 from app.core.redis import redis_client
 from app.core.tools import (
     get_answers,
@@ -16,6 +15,7 @@ from app.core.tools import (
     get_time,
     get_weather,
     make_write_tools,
+    search_kb,
     search_question,
 )
 from app.models import User
@@ -36,7 +36,7 @@ async def chat(
     user: User | None = Depends(get_current_user_optional),
 ):
     # 读工具始终可用；写工具仅在登录后注册，且用户身份由后端绑定，LLM 不可见
-    tools = [search_question, get_weather, get_time, get_location, get_answers]
+    tools = [search_question, search_kb, get_weather, get_time, get_location, get_answers]
     if user is not None:
         tools += make_write_tools(user.id)
 
@@ -46,8 +46,13 @@ async def chat(
         data = redis_client.get(cache_key)
         history = json.loads(data) if data else []
         history.append({"role": "user", "content": payload.question})
-        hits = search(payload.question)
-        system_content = build_prompt(hits)
+        system_content = (
+            "你是问答社区智能助手。回答用户问题时：\n"
+            "1. 涉及社区已有内容、技术知识点时，先调用 search_kb 检索离线知识库，"
+            "或调用 search_question 查询社区实时数据；\n"
+            "2. 检索到的资料可能相关也可能无关，只采用与问题相关的部分，并标注来源；\n"
+            "3. 若检索不到相关资料，请明确说明资料不足，不要编造。"
+        )
         inputs = {"messages": [{"role": "system", "content": system_content}] + history}
 
         agent = create_react_agent(model=llm, tools=tools)

@@ -46,6 +46,15 @@ def search_question(query: str, limit: int = 5) -> str:
 
 
 @tool
+def search_kb(query: str) -> str:
+    """检索社区离线知识库，返回与该问题最相关的问答资料及来源标题。当用户问题涉及社区已有内容、技术知识点、历史讨论时使用；回答时请基于检索到的资料并标注来源。"""
+    from app.core.rag import search
+
+    hits = search(query)
+    return json.dumps(hits, ensure_ascii=False)
+
+
+@tool
 def get_weather(city: str) -> str:
     """获取指定城市的实时天气。当用户询问某地天气、温度时使用。"""
     url = f"https://wttr.in/{quote(city)}?format=3"
@@ -122,3 +131,4 @@ def make_write_tools(user_id: int) -> list:
             return f"点赞成功，该回答当前点赞数 {answer.like_count}"
 
     return [like_answer]
+
