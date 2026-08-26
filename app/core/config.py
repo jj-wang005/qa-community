@@ -8,6 +8,8 @@ class Settings(BaseSettings):
     REFRESH_TOKEN_EXPIRE_DAYS: int = 7
     DEEPSEEK_API_KEY:str
     XIAOMI_MIMO_API_KEY: str
+    # 离线知识库定时重建间隔（小时），默认 6 小时
+    KB_REBUILD_INTERVAL_HOURS: int = 6
 
 
 

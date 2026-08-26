@@ -10,6 +10,7 @@ from app.core.exceptions import (
     unhandled_exception_handler,
 )
 from app.core.redis import redis_client
+from app.core.kb_sync import rebuild_kb_periodic
 from app.models import User, Question, Answer, Like  # noqa: F401 确保模型注册进 Base.metadata
 from app.db.base import Base, engine, SessionLocal
 from app.routers import auth, questions, answers, like, ai
@@ -36,7 +37,10 @@ async def lifespan(app: FastAPI):
     # 启动时自动建表，已存在的表自动跳过
     Base.metadata.create_all(bind=engine)
     task = asyncio.create_task(sync_view_count())
+    kb_task = asyncio.create_task(rebuild_kb_periodic())
     yield
+    kb_task.cancel()
+    task.cancel()
 
 
 app = FastAPI(title="问答社区", version="1.0.0", lifespan=lifespan)

@@ -36,6 +36,9 @@ def main():
         db.close()
         return
 
+    # 全量重建：先清空旧向量，再重新入库，避免同批文档重复累积
+    vectorstore.reset_collection()
+
     documents = [
         Document(page_content=d["text"], metadata=d["source"]) for d in docs
     ]
