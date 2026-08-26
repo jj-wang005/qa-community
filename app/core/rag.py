@@ -7,7 +7,7 @@ os.environ["HF_HUB_OFFLINE"] = "1"
 from langchain_chroma import Chroma
 from langchain_huggingface import HuggingFaceEmbeddings
 
-_SIMILARITY_THRESHOLD = 0.25  # 相似度阈值：bge 余弦相似度
+_SIMILARITY_THRESHOLD = 0.4  # 相似度阈值：bge 余弦相似度，切在弱相关噪音区之上
 
 embeddings = HuggingFaceEmbeddings(
     model_name="BAAI/bge-small-zh-v1.5",
