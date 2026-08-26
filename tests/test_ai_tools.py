@@ -2,7 +2,7 @@
 tests/test_ai_tools.py —— AI 工具函数的自动化测试
 
 只测「工具本身」的确定性行为（不经过 LLM，离线可重复）：
-- search_question：关键词检索社区问题
+- _search_question_like：关键词检索社区问题（search_master 内部使用的普通函数）
 - get_answers：按点赞数排序返回回答列表
 - like_answer：以闭包绑定的身份写库、清缓存、防重复
 
@@ -12,7 +12,7 @@ AI agent 真实链路（POST /ai/chat 会调 MiMo 外网 API）依赖外部服�
 
 import json
 
-from app.core.tools import search_question, get_answers, make_write_tools
+from app.core.tools import _search_question_like, get_answers, make_write_tools
 from app.core import tools as tools_module
 from app.models import User, Question, Answer, Like
 
@@ -43,7 +43,7 @@ def test_search_question_matches_title_and_fields(db_session):
     user = _seed_user(db_session)
     q, _ = _seed_question_with_answer(db_session, user, title="Redis 缓存一致性方案")
 
-    out = json.loads(search_question.invoke({"query": "Redis", "limit": 5}))
+    out = _search_question_like("Redis", limit=5)
     assert any(it["id"] == q.id for it in out)
     assert {"id", "title", "content", "answer_count", "view_count"} <= set(out[0])
 
@@ -53,7 +53,7 @@ def test_search_question_returns_empty_when_no_match(db_session):
     user = _seed_user(db_session)
     _seed_question_with_answer(db_session, user, title="JWT 刷新机制")
 
-    out = json.loads(search_question.invoke({"query": "不存在的词xyz", "limit": 5}))
+    out = _search_question_like("不存在的词xyz", limit=5)
     assert out == []
 
 

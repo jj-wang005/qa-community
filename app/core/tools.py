@@ -14,9 +14,8 @@ from app.models.like import Like
 from app.models.question import Question
 
 
-@tool
-def search_question(query: str, limit: int = 5) -> str:
-    """按关键词搜索社区问题库，返回匹配问题的标题、内容摘要与热度数据。当用户询问社区里是否已有相关问题、或需要社区实时数据时使用。 """
+def _search_question_like(query: str, limit: int = 5) -> list:
+    """按关键词 LIKE 搜索社区问题库，返回问题标题、内容摘要与热度数据（实时）。"""
     with SessionLocal() as db:
         hot_expr = func.log2(Question.view_count + 1) + Question.answer_count * 10
         stmt = (
@@ -32,7 +31,7 @@ def search_question(query: str, limit: int = 5) -> str:
         )
         questions = db.scalars(stmt).all()
 
-    items = [
+    return [
         {
             "id": q.id,
             "title": q.title,
@@ -42,16 +41,41 @@ def search_question(query: str, limit: int = 5) -> str:
         }
         for q in questions
     ]
-    return json.dumps(items, ensure_ascii=False)
+
+# search_question，search_kb 目前不再使用，已经统一归入到 search_master
+# @tool
+# def search_question(query: str, limit: int = 5) -> str:
+#     """按关键词搜索社区问题库，返回匹配问题的标题、内容摘要与热度数据。当用户询问社区里是否已有相关问题、或需要社区实时数据时使用。 """
+#     items = _search_question_like(query, limit)
+#     return json.dumps(items, ensure_ascii=False)
+
+
+# @tool
+# def search_kb(query: str) -> str:
+#     """检索社区离线知识库，返回与该问题最相关的问答资料及来源标题。当用户问题涉及社区已有内容、技术知识点、历史讨论时使用；回答时请基于检索到的资料并标注来源。"""
+#     from app.core.rag import search
+#
+#     hits = search(query)
+#     return json.dumps(hits, ensure_ascii=False)
 
 
 @tool
-def search_kb(query: str) -> str:
-    """检索社区离线知识库，返回与该问题最相关的问答资料及来源标题。当用户问题涉及社区已有内容、技术知识点、历史讨论时使用；回答时请基于检索到的资料并标注来源。"""
+def search_master(query: str) -> str:
+    """检索社区资料。优先检索离线知识库（语义检索、质量高），若检索不到相关资料，再回退到社区实时问题库（关键词匹配）。
+
+    当用户问题涉及社区已有内容、技术知识点、历史讨论、或需要查社区里有没有相关问题、有多少回答时，统一使用本工具，不要再单独调用 search_kb / search_question。"""
     from app.core.rag import search
 
+    # 第一路：离线知识库（语义检索，带相关度阈值过滤）
     hits = search(query)
-    return json.dumps(hits, ensure_ascii=False)
+    if hits:
+        return json.dumps(
+            {"source": "knowledge_base", "hits": hits}, ensure_ascii=False
+        )
+
+    # 第二路：实时社区问题库（关键词 LIKE，确保最新数据兜底）
+    items = _search_question_like(query)
+    return json.dumps({"source": "live_db", "hits": items}, ensure_ascii=False)
 
 
 @tool
