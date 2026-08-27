@@ -21,7 +21,7 @@ CLAUDE.md
 # Claude Code 自身配置
 .claude/
 
-# 本地测试脚本（一次性工具）
+# 本地测试脚本
 scripts/
 
 # 性能压测报告（个人记录）
@@ -29,6 +29,9 @@ docs/
 
 # RAG 向量数据库（由 build_kb.py 从 MySQL 派生，可随时重建）
 chroma_db/
+
+# RAG 重排模型（本地下载的 cross-encoder）
+models/
 
 # pytest 缓存
 .pytest_cache/

@@ -6,8 +6,11 @@ os.environ["HF_HUB_OFFLINE"] = "1"
 
 from langchain_chroma import Chroma
 from langchain_huggingface import HuggingFaceEmbeddings
+from sentence_transformers import CrossEncoder
 
-_SIMILARITY_THRESHOLD = 0.4  # 相似度阈值：bge 余弦相似度，切在弱相关噪音区之上
+_SIMILARITY_THRESHOLD = 0.4  # 相似度阈值
+_RETRIEVAL_TOP_K = 20  # 第一路召回数量
+_RERANK_TOP_K = 5  # 精排后保留数量
 
 embeddings = HuggingFaceEmbeddings(
     model_name="BAAI/bge-small-zh-v1.5",
@@ -20,18 +23,29 @@ vectorstore = Chroma(
     persist_directory="./chroma_db",
 )
 
+# cross-encoder 精排模型
+reranker = CrossEncoder(
+    model_name_or_path=r"F:\python_code(1)\fastapi_projrct\qa_community\models\bge-reranker"
+)
+
 
 def embed(texts: List[str]) -> list[list[float]]:
     """将文本转为向量（归一化）。"""
     return embeddings.embed_documents(texts)
 
 
-def search(query: str, top_k: int = 5) -> List[Dict]:
-    """检索与问题最相关的资料，相似度不超过阈值的结果直接丢弃。"""
-    docs = vectorstore.similarity_search_with_relevance_scores(query, k=top_k)
+def search(query: str, top_k: int = _RERANK_TOP_K) -> List[Dict]:
+    # 向量召回
+    docs = vectorstore.similarity_search(query, k=_RETRIEVAL_TOP_K)
+    if not docs:
+        return []
+
+    # cross-encoder 精排，把 query 与每个候选拼成一对逐字比对
+    scores = reranker.predict([(query, doc.page_content) for doc in docs])
+    ranked = sorted(zip(docs, scores), key=lambda x: x[1], reverse=True)
+
     hits = []
-    for doc, score in docs:
-        # bge 归一化后 relevance_score 即余弦相似度，越大越相关，<=0 视为不相关
+    for doc, score in ranked[:top_k]:
         if score > _SIMILARITY_THRESHOLD:
             hits.append({"content": doc.page_content, "source": doc.metadata})
     return hits
