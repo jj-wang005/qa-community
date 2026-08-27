@@ -42,16 +42,21 @@ def embed(texts: List[str]) -> list[list[float]]:
     return embeddings.embed_documents(texts)
 
 
+def _cache_key(query: str) -> str:
+    """归一化询问并生成缓存 key：去掉所有空格 + 统一小写，让 "JWT过期" / "JWT 过期" 命中同一缓存。"""
+    return f"rag:search:{query.replace(' ', '').lower()}"
+
+
 def _cache_get(query: str):
     """读检索结果缓存；未命中返回 None。"""
-    data = redis_client.get(f"rag:search:{query}")
+    data = redis_client.get(_cache_key(query))
     return json.loads(data) if data else None
 
 
 def _cache_set(query: str, hits: List[Dict]) -> None:
     """写检索结果缓存。"""
     redis_client.setex(
-        f"rag:search:{query}", _RAG_CACHE_TTL, json.dumps(hits, ensure_ascii=False)
+        _cache_key(query), _RAG_CACHE_TTL, json.dumps(hits, ensure_ascii=False)
     )
 
 
