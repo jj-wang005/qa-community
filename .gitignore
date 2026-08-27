@@ -33,5 +33,8 @@ chroma_db/
 # RAG 重排模型（本地下载的 cross-encoder）
 models/
 
+# LiteLLM 网关本地配置（本地动态环境用，不入库）
+litellm_config.yaml
+
 # pytest 缓存
 .pytest_cache/
