@@ -23,9 +23,9 @@ from app.schemas.ai import ChatRequest
 router = APIRouter(prefix="/ai", tags=["AI助手"])
 
 llm = ChatOpenAI(
-    model="mimo-v2.5",
-    api_key=settings.XIAOMI_MIMO_API_KEY,
-    base_url="https://api.xiaomimimo.com/v1",
+    model=settings.LLM_GATEWAY_MODEL,
+    api_key=settings.LLM_GATEWAY_API_KEY,
+    base_url=settings.LLM_GATEWAY_BASE_URL,
 )
 
 
