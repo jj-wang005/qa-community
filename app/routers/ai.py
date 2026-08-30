@@ -8,7 +8,7 @@ from langgraph.prebuilt import create_react_agent
 
 from app.core.config import settings
 from app.core.deps import get_current_user_optional
-from app.core.redis import redis_client
+from app.core.redis_client import redis_client
 from app.core.tools import (
     get_answers,
     get_location,

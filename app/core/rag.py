@@ -10,7 +10,8 @@ from langchain_chroma import Chroma
 from langchain_huggingface import HuggingFaceEmbeddings
 from sentence_transformers import CrossEncoder
 
-from app.core.redis import redis_client
+from app.core.config import BASE_DIR
+from app.core.redis_client import redis_client
 
 _SIMILARITY_THRESHOLD = 0.05  # 重排分数阈值：bge-reranker 输出相对排序分，实测为：相关~0.2、无关~0
 _RETRIEVAL_TOP_K = 20  # 第一路召回数量
@@ -31,12 +32,13 @@ embeddings = HuggingFaceEmbeddings(
 vectorstore = Chroma(
     collection_name="qa_docs",
     embedding_function=embeddings,
-    persist_directory="./chroma_db",
+    # 基于项目根定位持久化目录，避免依赖当前工作目录
+    persist_directory=str(BASE_DIR / "chroma_db"),
 )
 
 # cross-encoder 精排模型
 reranker = CrossEncoder(
-    model_name_or_path=r"F:\python_code(1)\fastapi_projrct\qa_community\models\bge-reranker"
+    model_name_or_path=str(BASE_DIR / "models" / "bge-reranker")
 )
 
 

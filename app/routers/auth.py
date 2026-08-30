@@ -9,7 +9,7 @@ from app.db.base import get_db
 from app.core.security import get_password_hash, verify_password, create_access_token, create_refresh_token, \
     decode_token
 from app.models.user import User
-from app.core.redis import redis_client
+from app.core.redis_client import redis_client
 
 
 router = APIRouter(prefix="/auth", tags=["认证"])

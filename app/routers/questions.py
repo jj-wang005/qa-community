@@ -8,7 +8,7 @@ from sqlalchemy.orm import Session, joinedload
 
 from app.core.deps import get_current_user
 from app.core.paginate import paginate
-from app.core.redis import redis_client
+from app.core.redis_client import redis_client
 from app.db.base import get_db
 from app.models import User, Question
 from app.schemas.questions import CreateQuestion, QuestionOut, QuestionSort

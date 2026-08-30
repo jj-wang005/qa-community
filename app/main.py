@@ -9,7 +9,7 @@ from app.core.exceptions import (
     validation_exception_handler,
     unhandled_exception_handler,
 )
-from app.core.redis import redis_client
+from app.core.redis_client import redis_client
 from app.core.kb_sync import rebuild_kb_periodic
 from app.models import User, Question, Answer, Like  # noqa: F401 确保模型注册进 Base.metadata
 from app.db.base import Base, engine, SessionLocal

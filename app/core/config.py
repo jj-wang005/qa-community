@@ -1,4 +1,10 @@
+from pathlib import Path
+
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+# 项目根目录：config.py 位于 app/core/ 下，上溯两级即项目根。
+# 用绝对路径定位 .env，避免依赖当前工作目录导致脚本在非项目根运行时报配置缺失
+BASE_DIR = Path(__file__).resolve().parents[2]
 
 class Settings(BaseSettings):
     DATABASE_URL: str
@@ -19,6 +25,6 @@ class Settings(BaseSettings):
 
 
 
-    model_config = SettingsConfigDict(env_file=".env")
+    model_config = SettingsConfigDict(env_file=BASE_DIR / ".env")
 
 settings = Settings()

@@ -7,7 +7,7 @@ import requests
 from langchain_core.tools import tool
 from sqlalchemy import func, or_, select
 
-from app.core.redis import redis_client
+from app.core.redis_client import redis_client
 from app.db.base import SessionLocal
 from app.models import Answer
 from app.models.like import Like
