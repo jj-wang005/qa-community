@@ -62,16 +62,13 @@ def _search_question_like(query: str, limit: int = 5) -> list:
 @tool
 def search_master(query: str) -> str:
     """检索社区资料。优先检索离线知识库（语义检索、质量高），若检索不到相关资料，再回退到社区实时问题库（关键词匹配）。
-
     当用户问题涉及社区已有内容、技术知识点、历史讨论、或需要查社区里有没有相关问题、有多少回答时，统一使用本工具，不要再单独调用 search_kb / search_question。"""
-    from app.core.rag import search
+    from app.core.rag import format_context, search
 
     # 第一路：离线知识库（语义检索，带相关度阈值过滤）
     hits = search(query)
     if hits:
-        return json.dumps(
-            {"source": "knowledge_base", "hits": hits}, ensure_ascii=False
-        )
+        return format_context(hits)
 
     # 第二路：实时社区问题库（关键词 LIKE，确保最新数据兜底）
     items = _search_question_like(query)

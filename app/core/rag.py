@@ -136,3 +136,16 @@ def search(query: str, top_k: int = _RERANK_TOP_K) -> List[Dict]:
     _cache_set(query, hits)
     _semantic_index_set(query, query_vec)
     return hits
+
+
+def format_context(hits: List[Dict], top_k: int = 3) -> str:
+    """把检索命中的资料格式化成带编号、带来源的结构化文本，供 LLM 引用。
+    每条资料输出一块：[资料N] 来源：{title}，随后换行接正文。hits 已按相关度降序排列，这里只取前 top_k 条且不重排，把最相关的资料放在最前，落在 LLM注意力最强的位置；保留来源标题是为了让 LLM 引用资料时能标注出处。
+    Context Formatting and avoid Lost-in-the-Middle
+    """
+    blocks = []
+    for i, hit in enumerate(hits[:top_k], start=1):
+        source = hit.get("source") or {}
+        title = source.get("title") if isinstance(source, dict) else str(source)
+        blocks.append(f"[资料{i}] 来源：{title}\n{hit.get('content', '')}")
+    return "\n\n".join(blocks)
