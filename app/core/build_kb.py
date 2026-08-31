@@ -40,12 +40,20 @@ def get_documents(db):
     return docs
 
 
+# Chroma 单次批量写入有上限（默认 5461 条），数据量大时必须分批提交
+_ADD_BATCH = 1000
+
+
 def _add_documents(docs) -> None:
     """按 question_id 作为向量文档 id 写入；重复 id 覆盖旧向量（Chroma add 为 upsert 语义）。"""
-    documents = [
-        Document(page_content=d["text"], metadata=d["source"]) for d in docs
-    ]
-    vectorstore.add_documents(documents, ids=[str(d["source"]["qid"]) for d in docs])
+    for i in range(0, len(docs), _ADD_BATCH):
+        batch = docs[i : i + _ADD_BATCH]
+        documents = [
+            Document(page_content=d["text"], metadata=d["source"]) for d in batch
+        ]
+        vectorstore.add_documents(
+            documents, ids=[str(d["source"]["qid"]) for d in batch]
+        )
 
 
 def rebuild_all() -> int:

@@ -1,21 +1,26 @@
+import hashlib
 import json
 import os
+import re
 import time
 from typing import List, Dict
 
 # 模型下载至到本地缓存
 os.environ["HF_HUB_OFFLINE"] = "1"
 
+import jieba
 from langchain_chroma import Chroma
 from langchain_huggingface import HuggingFaceEmbeddings
+from rank_bm25 import BM25Okapi
 from sentence_transformers import CrossEncoder
 
 from app.core.config import BASE_DIR
 from app.core.redis_client import redis_client
 
-_SIMILARITY_THRESHOLD = 0.05  # 重排分数阈值：bge-reranker 输出相对排序分，实测为：相关~0.2、无关~0
-_RETRIEVAL_TOP_K = 20  # 第一路召回数量
-_RERANK_TOP_K = 5  # 精排后保留数量
+_SIMILARITY_THRESHOLD = 0.05  # 重排分数阈值：bge-reranker 输出相对排序分，15 条库实测相关~0.2、无关~0；曾下调到 0 导致库外无关题全部误伤（防幻觉破坏），恢复 0.05
+_RETRIEVAL_TOP_K = 50  # 第一路召回数量
+_RERANK_TOP_K = 8  # 精排后保留数量
+_RRF_FUSION_N = 40  # 两路召回 RRF 融合后送入精排的候选数
 # 快慢双路判定阈值：向量检索 top-1 余弦分高于该值时，直接信任向量排名，跳过重排
 _FAST_PATH_TOP_SCORE = 0.7
 # 检索结果缓存 TTL（秒）：同一 query 在窗口期内复用命中文档，避免重复耗时精排。
@@ -45,6 +50,63 @@ reranker = CrossEncoder(
 def embed(texts: List[str]) -> list[list[float]]:
     """将文本转为向量（归一化）。"""
     return embeddings.embed_documents(texts)
+
+
+# ===== BM25 关键词召回（字面路，与向量语义路互补）=====
+# 纯内存索引：内容跟随向量库，应用启动时懒加载、sync_kb_incremental 跑完后重建。
+# 重建只数一遍词频（无 embedding、无网络，1 万条秒级），所以不做增量维护。
+_bm25_index = None
+_bm25_docs: List[Dict] = []
+
+_CJK_ALNUM = re.compile(r"[一-龥a-zA-Z0-9]")
+
+
+def _tokenize(text: str) -> list[str]:
+    """jieba 中文分词，过滤纯标点 token。中文无空格分隔，BM25 必须先分词才能按词统计。"""
+    return [tok for tok in jieba.cut(text) if _CJK_ALNUM.search(tok)]
+
+
+def build_bm25_index() -> int:
+    """从 Chroma 现有文档构建内存 BM25 索引，返回索引条数。
+    与向量库共用同一份文档原文（vectorstore.get()），不重新读库、不重新 embedding。
+    """
+    global _bm25_index, _bm25_docs
+    stored = vectorstore.get(include=["documents", "metadatas"])
+    texts = stored.get("documents", [])
+    metas = stored.get("metadatas", [])
+    _bm25_docs = [
+        {"content": text, "source": meta or {}}
+        for text, meta in zip(texts, metas)
+    ]
+    _bm25_index = BM25Okapi([_tokenize(t) for t in texts])
+    return len(_bm25_docs)
+
+
+def bm25_search(query: str, top_k: int = 50) -> List[Dict]:
+    """BM25 关键词召回，返回与向量检索相同结构的 hits（含 content/source）。索引未建时懒加载。"""
+    global _bm25_index
+    if _bm25_index is None:
+        build_bm25_index()
+    scores = _bm25_index.get_scores(_tokenize(query))
+    order = sorted(range(len(scores)), key=lambda i: scores[i], reverse=True)
+    return [_bm25_docs[i] for i in order[:top_k] if scores[i] > 0]
+
+
+def _rrf_fusion(ranked_lists: List[List[Dict]], top_n: int, k: int = 60) -> List[Dict]:
+    """RRF（Reciprocal Rank Fusion）多路召回融合。
+
+    每路召回按名次计 1/(k+rank) 分，多路同现累加，按融合分降序取 top_n。
+    按内容指纹去重（同内容多副本只保留一份），融合只决定「把谁送进精排」，最终排序交给 cross-encoder。
+    """
+    fused: Dict[str, float] = {}
+    hits_by_key: Dict[str, Dict] = {}
+    for hits in ranked_lists:
+        for rank, hit in enumerate(hits, start=1):
+            key = hashlib.md5(hit.get("content", "").encode("utf-8")).hexdigest()
+            fused[key] = fused.get(key, 0.0) + 1.0 / (k + rank)
+            hits_by_key.setdefault(key, hit)
+    ordered = sorted(fused.items(), key=lambda x: x[1], reverse=True)
+    return [hits_by_key[key] for key, _ in ordered[:top_n]]
 
 
 def _norm(query: str) -> str:
@@ -96,7 +158,7 @@ def _semantic_lookup(vec) -> str | None:
     return best_norm
 
 
-def search(query: str, top_k: int = _RERANK_TOP_K) -> List[Dict]:
+def search(query: str, top_k: int = _RERANK_TOP_K, use_bm25: bool = True) -> List[Dict]:
     # 精确命中：同一 query 直接复用，零成本
     cached = _cache_get(query)
     if cached is not None:
@@ -125,15 +187,23 @@ def search(query: str, top_k: int = _RERANK_TOP_K) -> List[Dict]:
             for doc, _ in scored_docs[:top_k]
         ]
     else:
-        # 慢路：向量分值模糊，使用cross-encoder逐字比对精排
-        docs = [doc for doc, _ in scored_docs]
-        scores = reranker.predict([(query, doc.page_content) for doc in docs])
-        ranked = sorted(zip(docs, scores), key=lambda x: x[1], reverse=True)
+        # 慢路：向量（可选叠加 BM25）经 RRF 融合压缩后，cross-encoder 逐字比对精排
+        vector_hits = [
+            {"content": doc.page_content, "source": doc.metadata}
+            for doc, _ in scored_docs
+        ]
+        if use_bm25:
+            bm25_hits = bm25_search(query, top_k=_RETRIEVAL_TOP_K)
+            candidates = _rrf_fusion([vector_hits, bm25_hits], top_n=_RRF_FUSION_N)
+        else:
+            candidates = vector_hits
+        scores = reranker.predict([(query, d["content"]) for d in candidates])
+        ranked = sorted(zip(candidates, scores), key=lambda x: x[1], reverse=True)
         hits = []
         for doc, score in ranked[:top_k]:
             # 精排分数低于阈值视为噪音直接丢弃
             if score > _SIMILARITY_THRESHOLD:
-                hits.append({"content": doc.page_content, "source": doc.metadata})
+                hits.append(doc)
 
     _cache_set(query, hits)
     _semantic_index_set(query, query_vec)

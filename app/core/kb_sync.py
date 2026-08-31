@@ -3,6 +3,7 @@ import logging
 
 from app.core import build_kb
 from app.core.config import settings
+from app.core.rag import build_bm25_index
 
 logger = logging.getLogger(__name__)
 
