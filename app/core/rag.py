@@ -2,7 +2,6 @@ import hashlib
 import json
 import os
 import re
-import time
 from typing import List, Dict
 
 # 模型下载至到本地缓存
@@ -25,9 +24,6 @@ _RRF_FUSION_N = 40  # 两路召回 RRF 融合后送入精排的候选数
 _FAST_PATH_TOP_SCORE = 0.7
 # 检索结果缓存 TTL（秒）：同一 query 在窗口期内复用命中文档，避免重复耗时精排。
 _RAG_CACHE_TTL = 1800
-# 语义缓存命中阈值：当前 query 与历史 query 的向量余弦相似度超过该值，即复用其资料。
-_SEMANTIC_THRESHOLD = 0.7
-_SEMANTIC_INDEX_KEY = "rag:vec:index"
 
 embeddings = HuggingFaceEmbeddings(
     model_name="BAAI/bge-small-zh-v1.5",
@@ -132,47 +128,13 @@ def _cache_set(query: str, hits: List[Dict]) -> None:
     )
 
 
-def _semantic_index_set(query: str, vec) -> None:
-    """把 query 向量写入语义索引，供后续换说法的 query 复用检索结果。"""
-    redis_client.hset(
-        _SEMANTIC_INDEX_KEY,
-        _norm(query),
-        json.dumps({"v": vec, "ts": time.time()}),
-    )
-
-
-def _semantic_lookup(vec) -> str | None:
-    """在未过期的历史 query 中找与当前 query 最相似且超过阈值者，返回其归一化 query；无则 None。"""
-    items = redis_client.hgetall(_SEMANTIC_INDEX_KEY)
-    if not items:
-        return None
-    now = time.time()
-    best_norm, best_sim = None, 0.0
-    for norm, raw in items.items():
-        item = json.loads(raw)
-        if now - item["ts"] > _RAG_CACHE_TTL:
-            continue  # 与 hits 同 TTL，过期项不参与比对
-        sim = sum(x * y for x, y in zip(vec, item["v"]))
-        if sim > _SEMANTIC_THRESHOLD and sim > best_sim:
-            best_norm, best_sim = norm, sim
-    return best_norm
-
-
 def search(query: str, top_k: int = _RERANK_TOP_K, use_bm25: bool = True) -> List[Dict]:
     # 精确命中：同一 query 直接复用，零成本
     cached = _cache_get(query)
     if cached is not None:
         return cached
 
-    # 语义命中：query 换说法但语义相同，复用历史 query 的资料，跳过耗时检索
-    query_vec = embed([query])[0]
-    matched = _semantic_lookup(query_vec)
-    if matched is not None:
-        hits = _cache_get(matched)
-        if hits is not None:
-            return hits
-
-    # 第一阶段：向量召回，余弦分数若大于阈值直接返回
+    # 向量召回，余弦分数若大于阈值直接返回
     scored_docs = vectorstore.similarity_search_with_relevance_scores(
         query, k=_RETRIEVAL_TOP_K
     )
@@ -206,7 +168,6 @@ def search(query: str, top_k: int = _RERANK_TOP_K, use_bm25: bool = True) -> Lis
                 hits.append(doc)
 
     _cache_set(query, hits)
-    _semantic_index_set(query, query_vec)
     return hits
 
 
