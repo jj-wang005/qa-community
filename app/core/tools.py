@@ -5,74 +5,24 @@ from zoneinfo import ZoneInfo
 
 import requests
 from langchain_core.tools import tool
-from sqlalchemy import func, or_, select
+from sqlalchemy import select
 
 from app.core.redis_client import redis_client
 from app.db.base import SessionLocal
 from app.models import Answer
 from app.models.like import Like
-from app.models.question import Question
-
-
-def _search_question_like(query: str, limit: int = 5) -> list:
-    """按关键词 LIKE 搜索社区问题库，返回问题标题、内容摘要与热度数据（实时）。"""
-    with SessionLocal() as db:
-        hot_expr = func.log2(Question.view_count + 1) + Question.answer_count * 10
-        stmt = (
-            select(Question)
-            .where(
-                or_(
-                    Question.title.like(f"%{query}%"),
-                    Question.content.like(f"%{query}%"),
-                )
-            )
-            .order_by(hot_expr.desc())
-            .limit(limit)
-        )
-        questions = db.scalars(stmt).all()
-
-    return [
-        {
-            "id": q.id,
-            "title": q.title,
-            "content": q.content[:100],
-            "answer_count": q.answer_count,
-            "view_count": q.view_count,
-        }
-        for q in questions
-    ]
-
-# search_question，search_kb 目前不再使用，已经统一归入到 search_master
-# @tool
-# def search_question(query: str, limit: int = 5) -> str:
-#     """按关键词搜索社区问题库，返回匹配问题的标题、内容摘要与热度数据。当用户询问社区里是否已有相关问题、或需要社区实时数据时使用。 """
-#     items = _search_question_like(query, limit)
-#     return json.dumps(items, ensure_ascii=False)
-
-
-# @tool
-# def search_kb(query: str) -> str:
-#     """检索社区离线知识库，返回与该问题最相关的问答资料及来源标题。当用户问题涉及社区已有内容、技术知识点、历史讨论时使用；回答时请基于检索到的资料并标注来源。"""
-#     from app.core.rag import search
-#
-#     hits = search(query)
-#     return json.dumps(hits, ensure_ascii=False)
 
 
 @tool
 def search_master(query: str) -> str:
-    """检索社区资料。优先检索离线知识库（语义检索、质量高），若检索不到相关资料，再回退到社区实时问题库（关键词匹配）。
-    当用户问题涉及社区已有内容、技术知识点、历史讨论、或需要查社区里有没有相关问题、有多少回答时，统一使用本工具，不要再单独调用 search_kb / search_question。"""
+    """检索社区离线知识库，返回与问题最相关的问答资料及来源标题（结构化文本）。
+    当用户问题涉及社区已有内容、技术知识点、历史讨论时统一调用本工具检索。"""
     from app.core.rag import format_context, search
 
-    # 第一路：离线知识库（语义检索，带相关度阈值过滤）
     hits = search(query)
     if hits:
         return format_context(hits)
-
-    # 第二路：实时社区问题库（关键词 LIKE，确保最新数据兜底）
-    items = _search_question_like(query)
-    return json.dumps({"source": "live_db", "hits": items}, ensure_ascii=False)
+    return "离线知识库中检索不到相关资料"
 
 
 @tool
