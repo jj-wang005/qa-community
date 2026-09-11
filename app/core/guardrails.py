@@ -2,6 +2,8 @@ import re
 from html import escape
 from typing import List, Pattern
 
+from langchain.agents.middleware import AgentMiddleware
+
 # 提示注入特征模式：任何一条命中即视为疑似注入
 _INJECTION_PATTERNS: List[Pattern] = [
     # 中文：忽略/忘记/跳过之前的指令
@@ -28,11 +30,6 @@ _INJECTION_PATTERNS: List[Pattern] = [
 
 # 数据标签：用户输入统一包进该标签，声明标签内是数据而非可执行的指令
 _USER_INPUT_TAG = "user_input"
-
-
-def check_prompt_injection(text: str) -> bool:
-    """检测输入是否含提示注入特征。命中返回 True，由调用方降级处理（不拒绝）。"""
-    return bool(detect_prompt_injection(text))
 
 
 def detect_prompt_injection(text: str) -> list[str]:
@@ -63,12 +60,26 @@ def input_risks(question: str, history: list[dict]) -> list[str]:
     return sorted({risk for text in texts for risk in detect_prompt_injection(text)})
 
 
-class AgentGuardrail:
-    """每个请求独立的 Agent 钩子；只改模型视图，不污染原始历史。"""
+class AgentGuardrailMiddleware(AgentMiddleware):
+    """每轮独立的模型边界：凭据脱敏、输入包裹与工具资料隔离。"""
 
     def __init__(self, secrets=()):
         self.secrets = tuple(s for s in secrets if isinstance(s, str) and len(s) >= 8)
         self.tool_content_filtered = False
+
+    def redact_credentials(self, text: str) -> str:
+        """只处理本项目的登录凭据；公开用户名、问题/回答 ID 保持原样。"""
+        for secret in sorted(self.secrets, key=len, reverse=True):
+            text = text.replace(secret, '[REDACTED_CREDENTIAL]')
+        # JWT 与明确标注的密码/token；不对普通技术术语或数字做脱敏。
+        text = re.sub(r'\beyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\b',
+                      '[REDACTED_CREDENTIAL]', text)
+        text = re.sub(r'(?i)\bBearer\s+[A-Za-z0-9._~+/-]+=*',
+                      'Bearer [REDACTED_CREDENTIAL]', text)
+        return re.sub(
+            r'''(?i)((?:password|password_hash|access_token|refresh_token|密码)\s*["']?\s*[:=：]\s*["']?)([^\s,"'，；;<>}]+)''',
+            r'\1[REDACTED_CREDENTIAL]', text,
+        )
 
     def output_risks(self, text: str) -> list[str]:
         risks = []
@@ -82,11 +93,11 @@ class AgentGuardrail:
             risks.append("traceback")
         return risks
 
-    def before_model(self, state):
+    def prepare_messages(self, source):
         messages = []
-        for message in state["messages"]:
+        for message in source:
             if message.type == "human":
-                message = message.model_copy(update={"content": wrap_user_input(message.content)})
+                message = message.model_copy(update={"content": wrap_user_input(self.redact_credentials(message.content))})
             elif message.type == "tool" and message.name in {"search_master", "get_answers", "get_weather", "get_location"}:
                 content = message.content
                 if not isinstance(content, str) or detect_prompt_injection(content) or self.output_risks(content):
@@ -95,7 +106,16 @@ class AgentGuardrail:
                 elif len(content) > MAX_TOOL_TEXT:
                     self.tool_content_filtered = True
                     content = content[:MAX_TOOL_TEXT] + "\n[资料已截断]"
+                content = self.redact_credentials(content)
                 content = f'<untrusted_tool_data source="{escape(message.name, quote=True)}">{escape(content, quote=False)}</untrusted_tool_data>'
                 message = message.model_copy(update={"content": content})
+            elif isinstance(message.content, str):
+                message = message.model_copy(update={"content": self.redact_credentials(message.content)})
             messages.append(message)
-        return {"llm_input_messages": messages}
+        return messages
+
+    def wrap_model_call(self, request, handler):
+        return handler(request.override(messages=self.prepare_messages(request.messages)))
+
+    async def awrap_model_call(self, request, handler):
+        return await handler(request.override(messages=self.prepare_messages(request.messages)))
