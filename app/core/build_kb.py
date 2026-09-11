@@ -10,11 +10,7 @@ from app.models.question import Question
 def get_documents(db):
     """读取真实问答，返回 [{text, source}, ...]，source 含标题、问题 id 与内容指纹。"""
     docs = []
-    questions = (
-        db.query(Question)
-        .filter(~Question.title.like("测试%"), ~Question.title.like("调试题%"))
-        .all()
-    )
+    questions = db.query(Question).all()
     for q in questions:
         # 取该题最值得引用的回答：优先采纳的，其次点赞最多的
         answer = (
