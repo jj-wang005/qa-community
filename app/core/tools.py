@@ -5,11 +5,12 @@ from zoneinfo import ZoneInfo
 
 import requests
 from langchain_core.tools import tool
-from sqlalchemy import select
+from sqlalchemy import or_, select
 
 from app.core.redis_client import redis_client
+from app.core.kb_events import enqueue_kb_sync
 from app.db.base import SessionLocal
-from app.models import Answer
+from app.models import Answer, Question
 from app.models.like import Like
 
 
@@ -23,6 +24,34 @@ def search_master(query: str) -> str:
     if hits:
         return format_context(hits)
     return "离线知识库中检索不到相关资料"
+
+
+@tool
+def search_live_questions(query: str = "", limit: int = 5) -> str:
+    """查询社区当前问题，用于最新、刚发布、当前动态或按标题/正文精确查找。
+    此工具直接读取业务数据库；结果反映查询时状态，不用于历史语义检索。"""
+    limit = min(max(limit, 1), 10)
+    with SessionLocal() as db:
+        stmt = select(Question)
+        normalized = query.strip()
+        if normalized:
+            pattern = f"%{normalized}%"
+            stmt = stmt.where(or_(Question.title.like(pattern), Question.content.like(pattern)))
+        questions = db.scalars(
+            stmt.order_by(Question.created_at.desc(), Question.id.desc()).limit(limit)
+        ).all()
+    items = [
+        {
+            "qid": question.id,
+            "title": question.title,
+            "content": question.content[:300],
+            "answer_count": question.answer_count,
+            "created_at": question.created_at.isoformat() if question.created_at else None,
+            "updated_at": question.updated_at.isoformat() if question.updated_at else  None,
+        }
+        for question in questions
+    ]
+    return json.dumps({"source": "mysql_live", "items": items}, ensure_ascii=False)
 
 
 @tool
@@ -95,6 +124,8 @@ def make_write_tools(user_id: int) -> list:
                 return "点赞失败：该回答已经点过赞了"
             db.add(Like(user_id=user_id, answer_id=answer_id))
             answer.like_count += 1
+            # 点赞可能改变“最高赞回答”的选择；hash 未变化时 Worker 会自动跳过。
+            enqueue_kb_sync(db, answer.question_id)
             db.commit()
             # 失效该问题下回答列表的缓存，保证数据一致
             for k in redis_client.scan_iter(f"answers:{answer.question_id}:*"):
@@ -102,4 +133,3 @@ def make_write_tools(user_id: int) -> list:
             return f"点赞成功，该回答当前点赞数 {answer.like_count}"
 
     return [like_answer]
-

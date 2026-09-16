@@ -7,6 +7,7 @@ from sqlalchemy import func
 from sqlalchemy.orm import Session, joinedload
 
 from app.core.deps import get_current_user
+from app.core.kb_events import enqueue_kb_sync
 from app.core.paginate import paginate
 from app.core.redis_client import redis_client
 from app.db.base import get_db
@@ -24,6 +25,8 @@ def create_question(
 
     question = Question(author_id = current_user.id, title = payload.title, content=payload.content)
     db.add(question)
+    db.flush()
+    enqueue_kb_sync(db, question.id)
     db.commit()
 
     for k in redis_client.scan_iter("questions:new:*"):
@@ -117,6 +120,7 @@ def delete_question(
     if question.author_id != current_user.id:
         raise HTTPException(status_code=403, detail="只有作者才可以删除问题")
 
+    enqueue_kb_sync(db, question_id, operation="delete")
     db.delete(question)
     db.commit()
 

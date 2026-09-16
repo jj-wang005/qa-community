@@ -11,6 +11,7 @@ venv/
 
 # 环境变量 / 敏感配置
 .env
+.env.litellm
 
 # 个人学习笔记
 notes/
@@ -31,7 +32,7 @@ docs/
 chroma_db/
 
 # RAG 重排模型（本地下载的 cross-encoder）
-models/
+/models/
 
 # LiteLLM 网关本地配置（本地动态环境用，不入库）
 litellm_config.yaml

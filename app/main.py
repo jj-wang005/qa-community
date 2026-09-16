@@ -11,7 +11,7 @@ from app.core.exceptions import (
 )
 from app.core.redis_client import redis_client
 from app.core.kb_sync import rebuild_kb_periodic
-from app.models import User, Question, Answer, Like  # noqa: F401 确保模型注册进 Base.metadata
+from app.models import User, Question, Answer, Like, KbOutbox  # noqa: F401 确保模型注册进 Base.metadata
 from app.db.base import Base, engine, SessionLocal
 from app.routers import auth, questions, answers, like, ai
 

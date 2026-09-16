@@ -31,7 +31,8 @@ flowchart TD
     API --> Guard[输入风险检测与凭据脱敏]
     Guard --> Agent[LangChain Agent]
     Agent <--> LLM[OpenAI 兼容网关 / LiteLLM]
-    Agent --> Read[只读工具]
+    Agent --> Read[实时 / 历史只读工具]
+    Read --> Live[MySQL 当前社区数据]
     Read --> RAG[向量检索 + BM25 + 重排]
     RAG --> Chroma[(Chroma)]
     Agent --> HITL[点赞审批]
@@ -39,7 +40,8 @@ flowchart TD
     Like --> MySQL
     Agent --> Output[输出检查]
     Output --> Client
-    MySQL --> Sync[知识库增量同步]
+    MySQL --> Outbox[事务 Outbox]
+    Outbox --> Sync[后台增量同步]
     Sync --> Chroma
 ```
 
@@ -53,13 +55,18 @@ flowchart TD
 
 Embedding 使用 `BAAI/bge-small-zh-v1.5`，重排模型从本地 `models/bge-reranker/` 加载。阈值是当前实现参数，并非跨模型通用标准。
 
-知识库以问题 ID 作为文档 ID，组合问题与优先采纳/高赞回答的内容，通过文本指纹识别新增、修改和删除，避免对未变化内容重复向量化。定时任务默认每 6 小时执行一次，启动后不会立即同步。
+知识库以问题 ID 作为文档 ID，组合问题与优先采纳/高赞回答的内容，通过文本指纹识别新增、修改和删除，避免对未变化内容重复向量化。问题或回答写入时，会与业务数据在同一个 MySQL 事务中记录 `kb_outbox` 事件；应用内 Worker 默认每秒轮询、等待 5 秒合并窗口后按 `qid` 增量更新 Chroma。一次批量更新完成后才重建一次内存 BM25，并推进检索缓存版本。每 6 小时仍会全量校验一次，用于兜底修复漏同步。
+
+`search_master` 只检索已同步的历史知识库；`search_live_questions` 直接读取 MySQL，用于“最新、刚发布、当前动态”或标题/正文精确查询。两者同时使用时，MySQL 的时间、回答数等当前字段优先，重复 `qid` 不重复提供给模型。
+
+实时工具限制返回 10 条，适合当前项目的动态列表和小范围关键词查询。数据量增长后，应为标题/正文配置 MySQL FULLTEXT 索引或接入专用搜索服务，不能将 `%关键词%` 查询当作海量全文检索方案。
 
 ### 工具权限与人工审批
 
 | 工具 | 用途 | 执行策略 |
 | --- | --- | --- |
 | `search_master` | 检索社区离线知识库 | 无需审批 |
+| `search_live_questions` | 查询当前社区问题 | 无需审批 |
 | `get_answers` | 查询指定问题的回答 | 无需审批 |
 | `get_weather` | 查询天气 | 无需审批 |
 | `get_time` | 查询北京时间 | 无需审批 |
@@ -114,18 +121,14 @@ python -m pip install "langchain==1.3.16" "langgraph==1.2.11" "langchain-core==1
 
 ### 2. 配置服务与环境变量
 
-准备 MySQL，并创建数据库，例如：
-
-```sql
-CREATE DATABASE qa_db CHARACTER SET utf8mb4;
-```
+准备 MySQL，并创建一个 UTF-8 编码的业务数据库；库名由部署者自行确定。
 
 Redis 当前在代码中配置为 `localhost:6379`、默认 DB 0；其他地址或认证方式需要修改 `app/core/redis_client.py`。同时准备支持工具调用的 OpenAI 兼容网关；现有开发配置使用 LiteLLM，由网关管理模型路由。
 
 在项目根目录新建 `.env`，按自己的环境填写：
 
 ```dotenv
-DATABASE_URL=mysql+pymysql://YOUR_USER:YOUR_PASSWORD@127.0.0.1:3306/qa_db?charset=utf8mb4
+DATABASE_URL=YOUR_DATABASE_URL
 SECRET_KEY=REPLACE_WITH_A_RANDOM_SECRET
 ALGORITHM=HS256
 ACCESS_TOKEN_EXPIRE_MINUTES=60
@@ -134,14 +137,15 @@ REFRESH_TOKEN_EXPIRE_DAYS=7
 LLM_GATEWAY_BASE_URL=http://127.0.0.1:4000
 LLM_GATEWAY_MODEL=mimo-chat
 LLM_GATEWAY_API_KEY=YOUR_GATEWAY_KEY
-LITELLM_MASTER_KEY=YOUR_LITELLM_MASTER_KEY
 DEEPSEEK_API_KEY=YOUR_DEEPSEEK_KEY
-XIAOMI_MIMO_API_KEY=YOUR_MIMO_KEY
 
-KB_REBUILD_INTERVAL_HOURS=6
+KB_FULL_RECONCILE_INTERVAL_HOURS=24
+KB_SYNC_POLL_SECONDS=1
+KB_SYNC_DEBOUNCE_SECONDS=5
+KB_SYNC_BATCH_SIZE=100
 ```
 
-以上均为占位值。当前配置类要求这些字段存在；Agent 实际调用使用 `LLM_GATEWAY_*`，模型名称应与网关中的可用名称一致。`.env` 与本地 `litellm_config.yaml` 不随仓库提交，克隆后需自行配置。密码包含 URL 特殊字符时，需要对数据库连接串中的密码进行 URL 编码。
+以上均为占位值。`DATABASE_URL` 请按实际数据库和驱动自行配置，不在文档中固定地址、用户名或数据库名。Agent 实际调用使用 `LLM_GATEWAY_*`，模型名称应与网关中的可用名称一致。业务服务不保存模型厂商 Key；在本地 `.env.litellm` 中单独配置 `XIAOMI_MIMO_API_KEY` 与 `LITELLM_MASTER_KEY`，并在启动 LiteLLM 前将其加载到网关进程环境。`.env`、`.env.litellm` 与本地 `litellm_config.yaml` 均不随仓库提交。
 
 ### 3. 准备本地模型
 
@@ -168,9 +172,9 @@ python -m uvicorn app.main:app --host 127.0.0.1 --port 8000 --workers 1
 python -c "from app.core.build_kb import sync_kb_incremental; print(sync_kb_incremental())"
 ```
 
-同步会使 Chroma 中的文档与当前数据库对应，包括移除数据库中已删除问题的向量。初次同步后重启应用，使首次查询基于新数据构建 BM25 索引；不要在尚有待审批操作时重启。
+同步会使 Chroma 中的文档与当前数据库对应，包括移除数据库中已删除问题的向量。手动同步后需执行 `build_bm25_index()` 或重启应用，才能让内存 BM25 读取新文档；正常的 Outbox 同步会自动完成这一步。不要在尚有待审批操作时重启。
 
-当前必须使用单 worker。开发热重载或服务重启都会使内存中的待审批记录失效，用户需要重新发起操作。
+当前必须使用单 worker。开发热重载或服务重启都会使内存中的待审批记录失效，用户需要重新发起操作；Outbox 事件保留在 MySQL 中，重启后会继续消费。若部署多个应用实例，应将 `process_kb_outbox` 移到一个独立 Worker 或使用带消费者组的消息队列，避免多个实例重复消费同一批事件。
 
 ## API 使用
 
@@ -239,7 +243,7 @@ python -m pytest --noconftest -p no:cacheprovider tests/test_guardrails.py tests
 python -m pytest -q
 ```
 
-全量测试需要 MySQL、Redis 和本地模型等环境。`tests/conftest.py` 会重建 `qa_db_test` 中的表，并清空 Redis DB 15；请使用独立测试服务，确保这些位置没有需要保留的数据。离线回归通过不代表全量集成测试或真实模型链路均已验证。
+全量测试需要 MySQL、Redis 和本地模型等环境。`tests/conftest.py` 会重建独立测试数据库中的表，并清空 Redis DB 15；请使用独立测试服务，确保这些位置没有需要保留的数据。离线回归通过不代表全量集成测试或真实模型链路均已验证。
 
 ## 目录结构
 

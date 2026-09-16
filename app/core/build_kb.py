@@ -9,31 +9,28 @@ from app.models.question import Question
 
 def get_documents(db):
     """读取真实问答，返回 [{text, source}, ...]，source 含标题、问题 id 与内容指纹。"""
-    docs = []
-    questions = db.query(Question).all()
-    for q in questions:
-        # 取该题最值得引用的回答：优先采纳的，其次点赞最多的
-        answer = (
-            db.query(Answer)
-            .filter(Answer.question_id == q.id)
-            .order_by(Answer.is_accepted.desc(), Answer.like_count.desc())
-            .first()
-        )
-        text = f"问题：{q.title}\n{q.content}"
-        if answer:
-            text += f"\n回答：{answer.content[:500]}"
-        # hash 记录组装出的最终文本指纹：任何影响文本的变更（含点赞导致的回答变化）都会使指纹改变
-        docs.append(
-            {
-                "text": text,
-                "source": {
-                    "title": q.title,
-                    "qid": q.id,
-                    "hash": hashlib.md5(text.encode("utf-8")).hexdigest(),
-                },
-            }
-        )
-    return docs
+    return [_document_for_question(db, question) for question in db.query(Question).all()]
+
+
+def _document_for_question(db, question):
+    """把一个问题及最值得引用的回答组装成可向量化文档。"""
+    answer = (
+        db.query(Answer)
+        .filter(Answer.question_id == question.id)
+        .order_by(Answer.is_accepted.desc(), Answer.like_count.desc(), Answer.id.asc())
+        .first()
+    )
+    text = f"问题：{question.title}\n{question.content}"
+    if answer:
+        text += f"\n回答：{answer.content[:500]}"
+    return {
+        "text": text,
+        "source": {
+            "title": question.title,
+            "qid": question.id,
+            "hash": hashlib.md5(text.encode("utf-8")).hexdigest(),
+        },
+    }
 
 
 # Chroma 单次批量写入有上限（默认 5461 条），数据量大时必须分批提交
@@ -112,6 +109,48 @@ def sync_kb_incremental() -> dict:
     return {
         "新增": len(to_add),
         "更新": len(to_update),
+        "跳过": skipped,
+        "删除": len(to_delete),
+    }
+
+
+def sync_question_ids(question_ids: set[int]) -> dict:
+    """按 question_id 同步事件批次；数据库当前状态始终覆盖事件中的旧操作。"""
+    ids = sorted({int(question_id) for question_id in question_ids if int(question_id) > 0})
+    if not ids:
+        return {"新增": 0, "更新": 0, "跳过": 0, "删除": 0}
+
+    existing = vectorstore.get(ids=[str(question_id) for question_id in ids], include=["metadatas"])
+    existing_map = {
+        int(meta["qid"]): meta
+        for meta in existing.get("metadatas", [])
+        if meta and meta.get("qid") is not None
+    }
+    to_write, to_delete, skipped = [], [], 0
+    db = SessionLocal()
+    try:
+        for question_id in ids:
+            question = db.get(Question, question_id)
+            if question is None:
+                if question_id in existing_map:
+                    to_delete.append(str(question_id))
+                continue
+            document = _document_for_question(db, question)
+            if existing_map.get(question_id, {}).get("hash") == document["source"]["hash"]:
+                skipped += 1
+            else:
+                to_write.append(document)
+    finally:
+        db.close()
+
+    if to_write:
+        _add_documents(to_write)
+    if to_delete:
+        vectorstore.delete(ids=to_delete)
+    added = sum(document["source"]["qid"] not in existing_map for document in to_write)
+    return {
+        "新增": added,
+        "更新": len(to_write) - added,
         "跳过": skipped,
         "删除": len(to_delete),
     }

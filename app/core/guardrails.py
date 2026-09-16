@@ -98,7 +98,7 @@ class AgentGuardrailMiddleware(AgentMiddleware):
         for message in source:
             if message.type == "human":
                 message = message.model_copy(update={"content": wrap_user_input(self.redact_credentials(message.content))})
-            elif message.type == "tool" and message.name in {"search_master", "get_answers", "get_weather", "get_location"}:
+            elif message.type == "tool" and message.name in {"search_master", "search_live_questions", "get_answers", "get_weather", "get_location"}:
                 content = message.content
                 if not isinstance(content, str) or detect_prompt_injection(content) or self.output_risks(content):
                     self.tool_content_filtered = True

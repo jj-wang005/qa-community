@@ -1,13 +1,14 @@
 import math
 from datetime import datetime
 
-from sqlalchemy import String, Text, Integer, DateTime, func, ForeignKey
+from sqlalchemy import String, Text, Integer, DateTime, func, ForeignKey, Index
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.db.base import Base
 
 
 class Question(Base):
     __tablename__ = "questions"
+    __table_args__ = (Index("ix_questions_created_at", "created_at"),)
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
     author_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)

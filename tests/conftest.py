@@ -28,7 +28,7 @@ from app.routers import auth as auth_router
 from app.core import tools as tools_module
 # noqa: F401 是告诉 linter「这几行 import 了但没用，别报警」
 # 必须 import，否则 Base.metadata 里没这几张表，create_all 不会建它们
-from app.models import User, Question, Answer, Like  # noqa: F401
+from app.models import User, Question, Answer, Like, KbOutbox  # noqa: F401
 
 TEST_DB_NAME = "qa_db_test"
 

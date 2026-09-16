@@ -11,9 +11,9 @@ AI agent 真实链路（POST /ai/chat 会调 MiMo 外网 API）依赖外部服�
 
 import json
 
-from app.core.tools import get_answers, make_write_tools
+from app.core.tools import get_answers, make_write_tools, search_live_questions
 from app.core import tools as tools_module
-from app.models import User, Question, Answer, Like
+from app.models import User, Question, Answer, Like, KbOutbox
 
 
 def _seed_user(db_session, username="tester"):
@@ -72,6 +72,7 @@ def test_like_answer_writes_db_and_clears_cache(db_session):
     db_session.commit()
     assert a.like_count == 4
     assert db_session.query(Like).filter_by(user_id=user.id, answer_id=a.id).first() is not None
+    assert db_session.query(KbOutbox).filter_by(question_id=q.id, operation="upsert").count() == 1
     assert not tools_module.redis_client.exists(f"answers:{q.id}:page:1")
 
 
@@ -95,3 +96,19 @@ def test_like_answer_missing_answer(db_session):
     like_answer = make_write_tools(user_id=user.id)[0]
     out = like_answer.invoke({"answer_id": 99999})
     assert "回答不存在" in out
+
+
+def test_search_live_questions_reads_current_mysql_data(db_session):
+    """实时 Tool 按创建时间读取 MySQL，不经过 Chroma 或 BM25。"""
+    user = _seed_user(db_session)
+    older = Question(title="JWT 旧问题", content="旧内容", author_id=user.id)
+    newer = Question(title="JWT 新问题", content="新内容", author_id=user.id)
+    db_session.add_all([older, newer])
+    db_session.commit()
+
+    result = json.loads(search_live_questions.invoke({"query": "JWT", "limit": 1}))
+
+    assert result["source"] == "mysql_live"
+    assert len(result["items"]) == 1
+    assert result["items"][0]["qid"] == newer.id
+    assert result["items"][0]["title"] == "JWT 新问题"

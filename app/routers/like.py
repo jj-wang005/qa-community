@@ -2,6 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException, Path
 from sqlalchemy.orm import Session
 
 from app.core.deps import get_current_user
+from app.core.kb_events import enqueue_kb_sync
 from app.core.redis_client import redis_client
 from app.db.base import get_db
 from app.models import User, Answer
@@ -25,6 +26,7 @@ def like(
     new_like = Like(user_id = current_user.id, answer_id = answer_id)
     answer.like_count += 1
     db.add(new_like)
+    enqueue_kb_sync(db, answer.question_id)
     db.commit()
 
     for k in redis_client.scan_iter(f"answers:{answer.question_id}:*"):
@@ -47,6 +49,7 @@ def delete_like(
     if not answer:
         raise HTTPException(status_code=404, detail="回答不存在")
     answer.like_count -= 1
+    enqueue_kb_sync(db, answer.question_id)
     db.commit()
     for k in redis_client.scan_iter(f"answers:{answer.question_id}:*"):
         redis_client.delete(k)

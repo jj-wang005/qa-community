@@ -6,6 +6,7 @@ from sqlalchemy import func
 from sqlalchemy.orm import Session, joinedload
 
 from app.core.deps import get_current_user
+from app.core.kb_events import enqueue_kb_sync
 from app.core.paginate import paginate
 from app.core.redis_client import redis_client
 from app.db.base import get_db
@@ -35,6 +36,7 @@ def create_answer(
 
     existing.answer_count += 1
     db.add(answer)
+    enqueue_kb_sync(db, question_id)
     db.commit()
 
     redis_client.delete(f"question:{question_id}")
@@ -102,6 +104,7 @@ def accepte_answers(
         answers.is_accepted = True
     else:
         raise HTTPException(status_code=403, detail="只有作者才可以采纳评论")
+    enqueue_kb_sync(db, answers.question_id)
     db.commit()
 
     for k in redis_client.scan_iter(f"answers:{answers.question_id}:*"):
@@ -126,6 +129,7 @@ def delete_answer(
     question = db.get(Question, question_id)
     if question:
         question.answer_count = max(0, question.answer_count - 1)
+    enqueue_kb_sync(db, question_id)
     db.delete(answer)
     db.commit()
 
