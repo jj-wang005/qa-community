@@ -1,6 +1,6 @@
-# QA Community · 带 RAG 与 Agent 的问答社区后端
+# QA Community · 带 RAG 与 Agent 的前后端分离问答社区
 
-基于 **FastAPI、MySQL 和 Redis** 的问答社区后端，在注册登录、问题发布、回答、采纳与点赞等业务之上，接入社区知识库检索和工具调用 Agent。
+基于 **Vue 3、FastAPI、MySQL 和 Redis** 的前后端分离问答社区，在注册登录、问题发布、回答、采纳与点赞等业务之上，接入社区知识库检索和工具调用 Agent。
 
 用户既可以通过 API 浏览与参与讨论，也可以向 AI 助手提问、检索社区资料、查询回答，并在人工确认后完成点赞。项目重点是将 AI 能力接入真实业务流程，同时保留服务端身份校验、缓存策略和写操作审批。
 
@@ -24,7 +24,7 @@
 
 ```mermaid
 flowchart TD
-    Client[API 客户端 / Swagger] --> API[FastAPI]
+    Client[Vue 前端 / Swagger] --> API[FastAPI]
     API --> Business[认证与问答业务]
     Business --> MySQL[(MySQL)]
     Business --> Redis[(Redis)]
@@ -90,6 +90,7 @@ Embedding 使用 `BAAI/bge-small-zh-v1.5`，重排模型从本地 `models/bge-re
 
 | 层次 | 主要技术 |
 | --- | --- |
+| 前端 | Vue 3、TypeScript、Vite、Vue Router |
 | Web 与校验 | FastAPI、Pydantic、Uvicorn |
 | 数据与缓存 | SQLAlchemy、MySQL、PyMySQL、Redis |
 | 认证 | python-jose、Passlib、bcrypt |
@@ -157,7 +158,7 @@ CORS_ORIGINS=http://localhost:5173,http://127.0.0.1:5173
 
 模型文件和 Chroma 数据不包含在 Git 仓库中。仅配置模型 API Key 不能替代本地检索模型。
 
-### 4. 启动并准备知识库
+### 4. 启动后端并准备知识库
 
 在 Windows 上可以直接双击项目根目录中的 `start_ai_gateway.bat`，它会加载 `.env.litellm` 并在 `127.0.0.1:4000` 启动 LiteLLM 网关。保持该窗口运行，按 `Ctrl+C` 停止网关。
 
@@ -178,6 +179,20 @@ python -c "from app.core.build_kb import sync_kb_incremental; print(sync_kb_incr
 同步会使 Chroma 中的文档与当前数据库对应，包括移除数据库中已删除问题的向量。手动同步后需执行 `build_bm25_index()` 或重启应用，才能让内存 BM25 读取新文档；正常的 Outbox 同步会自动完成这一步。不要在尚有待审批操作时重启。
 
 当前必须使用单 worker。开发热重载或服务重启都会使内存中的待审批记录失效，用户需要重新发起操作；Outbox 事件保留在 MySQL 中，重启后会继续消费。若部署多个应用实例，应将 `process_kb_outbox` 移到一个独立 Worker 或使用带消费者组的消息队列，避免多个实例重复消费同一批事件。
+
+### 5. 启动前端
+
+保持后端运行，另开一个终端，从项目根目录执行：
+
+```bash
+cd frontend
+npm install
+npm run dev
+```
+
+浏览器访问 [http://127.0.0.1:5173](http://127.0.0.1:5173)。开发服务器会把 `/api` 请求代理到 `http://127.0.0.1:8000`；生产构建可执行 `npm run build`，产物输出到 `frontend/dist/`。
+
+本地完整体验通常需要同时运行 MySQL、Redis、LiteLLM 网关、FastAPI 后端和 Vite 前端。若只查看普通社区功能，可以不调用 AI 页面；AI 对话需要网关和本地检索模型均已准备完成。
 
 ## API 使用
 
@@ -255,6 +270,16 @@ qa-community/
 ├── README.md
 ├── .gitignore
 ├── pytest.ini
+├── start_ai_gateway.bat       # Windows 一键启动 LiteLLM 网关
+├── frontend/                  # Vue 3 + TypeScript 前端
+│   ├── src/
+│   │   ├── api/               # 请求封装与令牌刷新
+│   │   ├── components/        # 通用界面组件
+│   │   ├── router/            # 页面路由
+│   │   ├── stores/            # 登录状态管理
+│   │   └── views/             # 问题、登录与 AI 页面
+│   ├── package.json
+│   └── vite.config.ts         # Vite 配置与后端代理
 ├── app/
 │   ├── main.py                 # 应用入口、路由注册与后台任务
 │   ├── routers/
