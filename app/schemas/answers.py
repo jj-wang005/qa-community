@@ -13,6 +13,7 @@ class AnswerOut(BaseModel):
     content: str
     like_count: int
     is_accepted: bool
+    is_liked: bool = False
     created_at: datetime
 
 class AnswerSort(str, Enum):

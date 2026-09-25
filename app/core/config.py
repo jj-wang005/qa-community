@@ -23,6 +23,12 @@ class Settings(BaseSettings):
     KB_SYNC_POLL_SECONDS: int = 1
     KB_SYNC_DEBOUNCE_SECONDS: int = 5
     KB_SYNC_BATCH_SIZE: int = 100
+    # 允许访问 API 的浏览器来源，使用逗号分隔。默认仅开放本地 Vite 开发地址。
+    CORS_ORIGINS: str = "http://localhost:5173,http://127.0.0.1:5173"
+
+    @property
+    def cors_origins(self) -> list[str]:
+        return [origin.strip() for origin in self.CORS_ORIGINS.split(",") if origin.strip()]
 
 
 

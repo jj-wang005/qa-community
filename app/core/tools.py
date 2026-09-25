@@ -128,8 +128,8 @@ def make_write_tools(user_id: int) -> list:
             enqueue_kb_sync(db, answer.question_id)
             db.commit()
             # 失效该问题下回答列表的缓存，保证数据一致
-            for k in redis_client.scan_iter(f"answers:{answer.question_id}:*"):
+            for k in redis_client.scan_iter(f"answers:*:{answer.question_id}:*"):
                 redis_client.delete(k)
-            return f"点赞成功，该回答当前点赞数 {answer.like_count}"
+            return f"点赞成功，已立即写入数据库，该回答当前点赞数 {answer.like_count}"
 
     return [like_answer]

@@ -44,6 +44,28 @@ def test_register_login_and_post_answer(client, auth):
     assert resp.json()["content"] == "这个挺不错的"
 
 
+def test_post_answer_invalidates_cached_empty_answer_list(client, auth):
+    """先缓存空回答列表，再发回答；下一次查询必须立即看到新回答。"""
+    token = auth(username="cache_user")
+    client.post(
+        "/api/v1/questions",
+        json={"title": "缓存一致性", "content": "先查询再回答"},
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    qid = client.get("/api/v1/questions?sort=new").json()[0]["id"]
+    assert client.get(f"/api/v1/questions/{qid}/answers?sort=hot").json() == []
+
+    posted = client.post(
+        f"/api/v1/questions/{qid}/answers",
+        json={"content": "这条回答应该立即显示"},
+        headers={"Authorization": f"Bearer {token}"},
+    )
+
+    assert posted.status_code == 200
+    listed = client.get(f"/api/v1/questions/{qid}/answers?sort=hot").json()
+    assert [answer["id"] for answer in listed] == [posted.json()["id"]]
+
+
 def test_answer_count_increments(client, auth):
     """发回答后，问题的 answer_count 应该 +1（数据联动）。"""
     token = auth(username="counter")

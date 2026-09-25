@@ -3,6 +3,7 @@ from contextlib import asynccontextmanager
 
 from fastapi import APIRouter, FastAPI, HTTPException
 from fastapi.exceptions import RequestValidationError
+from fastapi.middleware.cors import CORSMiddleware
 
 from app.core.exceptions import (
     http_exception_handler,
@@ -10,6 +11,7 @@ from app.core.exceptions import (
     unhandled_exception_handler,
 )
 from app.core.redis_client import redis_client
+from app.core.config import settings
 from app.core.kb_sync import rebuild_kb_periodic
 from app.models import User, Question, Answer, Like, KbOutbox  # noqa: F401 确保模型注册进 Base.metadata
 from app.db.base import Base, engine, SessionLocal
@@ -44,6 +46,14 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(title="问答社区", version="1.0.0", lifespan=lifespan)
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=settings.cors_origins,
+    allow_credentials=True,
+    allow_methods=["GET", "POST", "DELETE", "OPTIONS"],
+    allow_headers=["Authorization", "Content-Type"],
+)
 
 app.add_exception_handler(HTTPException, http_exception_handler)
 app.add_exception_handler(RequestValidationError, validation_exception_handler)

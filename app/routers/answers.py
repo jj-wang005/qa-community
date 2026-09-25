@@ -5,16 +5,30 @@ from fastapi import APIRouter, Path, Depends, HTTPException, Query
 from sqlalchemy import func
 from sqlalchemy.orm import Session, joinedload
 
-from app.core.deps import get_current_user
+from app.core.deps import get_current_user, get_current_user_optional
 from app.core.kb_events import enqueue_kb_sync
 from app.core.paginate import paginate
 from app.core.redis_client import redis_client
 from app.db.base import get_db
-from app.models import User, Question, Answer
+from app.models import User, Question, Answer, Like
 from app.schemas.answers import AnswerOut, AnswerCreate, AnswerSort
 
 router = APIRouter(prefix="/questions", tags=["回答"])
 answer_router = APIRouter(prefix="/answers", tags=["回答"])
+
+
+def _with_like_state(items: list[dict], db: Session, current_user: User | None) -> list[dict]:
+    """公共回答内容可共享缓存，当前用户的点赞状态在返回前单独叠加。"""
+    liked_ids: set[int] = set()
+    if current_user is not None and items:
+        answer_ids = [item["id"] for item in items]
+        liked_ids = {
+            answer_id for (answer_id,) in db.query(Like.answer_id).filter(
+                Like.user_id == current_user.id,
+                Like.answer_id.in_(answer_ids),
+            ).all()
+        }
+    return [{**item, "is_liked": item["id"] in liked_ids} for item in items]
 
 @router.post("/{question_id}/answers", response_model=AnswerOut)
 def create_answer(
@@ -40,6 +54,10 @@ def create_answer(
     db.commit()
 
     redis_client.delete(f"question:{question_id}")
+    # 回答列表缓存键为 answers:{sort}:{question_id}:{page}:{size}。
+    # 发布后必须清理所有排序和分页，否则回答数已增加但列表仍返回旧缓存。
+    for key in redis_client.scan_iter(f"answers:*:{question_id}:*"):
+        redis_client.delete(key)
     author = db.get(User, answer.author_id)
     return {
         "id": answer.id,
@@ -48,6 +66,7 @@ def create_answer(
         "content": answer.content,
         "like_count": answer.like_count,
         "is_accepted": answer.is_accepted,
+        "is_liked": False,
         "created_at": answer.created_at,
     }
 
@@ -58,12 +77,13 @@ def list_answers(
         db: Session = Depends(get_db),
         page: int = Query(1, ge=1, description="页码从1开始"),
         size: int = Query(10, ge=1, le=100, description="每页的内容数量"),
+        current_user: User | None = Depends(get_current_user_optional),
 ):
     cache_key = f"answers:{sort.value}:{question_id}:{page}:{size}"
     data = redis_client.get(cache_key)
     if data:
         result = json.loads(data)
-        return result
+        return _with_like_state(result, db, current_user)
     if sort == AnswerSort.new:
         answers = db.query(Answer).options(joinedload(Answer.author)).filter(Answer.question_id == question_id).order_by(Answer.created_at.desc())
         answers = paginate(answers, page, size)
@@ -88,7 +108,7 @@ def list_answers(
 
     redis_client.set(cache_key, json.dumps(cache_body, default=str), ex=60)
 
-    return cache_body
+    return _with_like_state(cache_body, db, current_user)
 
 @answer_router.post("/{answer_id}/accept")
 def accepte_answers(
@@ -107,7 +127,7 @@ def accepte_answers(
     enqueue_kb_sync(db, answers.question_id)
     db.commit()
 
-    for k in redis_client.scan_iter(f"answers:{answers.question_id}:*"):
+    for k in redis_client.scan_iter(f"answers:*:{answers.question_id}:*"):
         redis_client.delete(k)
 
     return {"接受": answers.is_accepted}

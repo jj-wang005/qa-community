@@ -245,7 +245,7 @@ def test_approval_with_real_like_tool_and_isolated_database(harness, monkeypatch
     deleted = []
     monkeypatch.setattr(tool_module, 'SessionLocal', sessions)
     monkeypatch.setattr(tool_module, 'redis_client', SimpleNamespace(
-        scan_iter=lambda pattern: ['answers:1:page:1'], delete=deleted.append))
+        scan_iter=lambda pattern: ['answers:hot:1:1:10'], delete=deleted.append))
     monkeypatch.setattr(ai, 'make_write_tools', tool_module.make_write_tools)
     h.model(call('like_answer', {'answer_id': 7}), AIMessage(content='处理完成'))
     data = approval(h.ask('点赞', h.user))
@@ -259,7 +259,7 @@ def test_approval_with_real_like_tool_and_isolated_database(harness, monkeypatch
         assert len(likes) == expected
         if likes:
             assert likes[0].user_id == 42 and likes[0].answer_id == 7
-    assert deleted == (['answers:1:page:1'] if expected else [])
+    assert deleted == (['answers:hot:1:1:10'] if expected else [])
     engine.dispose()
 
 

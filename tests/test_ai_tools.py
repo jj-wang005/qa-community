@@ -63,7 +63,8 @@ def test_like_answer_writes_db_and_clears_cache(db_session):
     like_answer = make_write_tools(user_id=user.id)[0]
 
     # 预造一条缓存，模拟「回答列表已被缓存」的场景
-    tools_module.redis_client.set(f"answers:{q.id}:page:1", "cached")
+    cache_key = f"answers:hot:{q.id}:1:10"
+    tools_module.redis_client.set(cache_key, "cached")
 
     out = like_answer.invoke({"answer_id": a.id})
     assert "点赞成功" in out
@@ -73,7 +74,7 @@ def test_like_answer_writes_db_and_clears_cache(db_session):
     assert a.like_count == 4
     assert db_session.query(Like).filter_by(user_id=user.id, answer_id=a.id).first() is not None
     assert db_session.query(KbOutbox).filter_by(question_id=q.id, operation="upsert").count() == 1
-    assert not tools_module.redis_client.exists(f"answers:{q.id}:page:1")
+    assert not tools_module.redis_client.exists(cache_key)
 
 
 def test_like_answer_rejects_duplicate(db_session):

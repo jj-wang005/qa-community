@@ -29,7 +29,7 @@ def like(
     enqueue_kb_sync(db, answer.question_id)
     db.commit()
 
-    for k in redis_client.scan_iter(f"answers:{answer.question_id}:*"):
+    for k in redis_client.scan_iter(f"answers:*:{answer.question_id}:*"):
         redis_client.delete(k)
 
     return{"msg": "点赞成功","点赞数量": answer.like_count}
@@ -51,7 +51,7 @@ def delete_like(
     answer.like_count -= 1
     enqueue_kb_sync(db, answer.question_id)
     db.commit()
-    for k in redis_client.scan_iter(f"answers:{answer.question_id}:*"):
+    for k in redis_client.scan_iter(f"answers:*:{answer.question_id}:*"):
         redis_client.delete(k)
 
     return{"msg": "取消点赞成功","点赞数量": answer.like_count}
