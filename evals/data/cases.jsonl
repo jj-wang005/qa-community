@@ -1,0 +1,50 @@
+{"id":"in_01","type":"rewrite","user_input":"Redis 缓存和 MySQL 数据对不上怎么办","reference_qids":[20020]}
+{"id":"in_02","type":"rewrite","user_input":"更新了数据库但缓存还是旧值怎么处理","reference_qids":[20022]}
+{"id":"in_03","type":"rewrite","user_input":"查不到的数据每次都打到数据库怎么防","reference_qids":[20029]}
+{"id":"in_04","type":"rewrite","user_input":"热点 key 过期瞬间大量请求打库怎么办","reference_qids":[20032]}
+{"id":"in_05","type":"rewrite","user_input":"access 和 refresh 两种 token 怎么配合","reference_qids":[20136]}
+{"id":"in_06","type":"rewrite","user_input":"刷新 token 的安全性怎么保证","reference_qids":[20138]}
+{"id":"in_07","type":"rewrite","user_input":"token 快过期了怎么自动续上","reference_qids":[20140]}
+{"id":"in_08","type":"rewrite","user_input":"查询列表反复查关联表很慢怎么办","reference_qids":[20148]}
+{"id":"in_09","type":"rewrite","user_input":"FastAPI 里函数参数怎么自动注入","reference_qids":[20152]}
+{"id":"in_10","type":"rewrite","user_input":"为什么加了索引查询就变快","reference_qids":[20071]}
+{"id":"in_11","type":"rewrite","user_input":"脏读和不可重复读幻读是什么","reference_qids":[20080]}
+{"id":"in_12","type":"rewrite","user_input":"翻页翻到后面越来越慢怎么解","reference_qids":[20087]}
+{"id":"in_13","type":"rewrite","user_input":"读接口怎么扛住大流量","reference_qids":[20092]}
+{"id":"in_14","type":"rewrite","user_input":"多实例下怎么保证只有一个人拿到锁","reference_qids":[20057]}
+{"id":"in_15","type":"rewrite","user_input":"Redis 重启后数据会不会丢","reference_qids":[20053]}
+{"id":"in_16","type":"rewrite","user_input":"数据库连接为什么不能每次新建","reference_qids":[20065]}
+{"id":"in_17","type":"rewrite","user_input":"SQL 跑得特别慢怎么排查","reference_qids":[20066]}
+{"id":"in_18","type":"rewrite","user_input":"明明建了索引查询却没走","reference_qids":[20074]}
+{"id":"in_19","type":"rewrite","user_input":"流量尖峰怎么削平","reference_qids":[20098]}
+{"id":"in_20","type":"rewrite","user_input":"前端请求怎么统一转发到后端","reference_qids":[20104]}
+{"id":"in_21","type":"rewrite","user_input":"用户重复提交怎么防","reference_qids":[20107]}
+{"id":"in_22","type":"rewrite","user_input":"接口被人刷怎么限流","reference_qids":[20114]}
+{"id":"in_23","type":"rewrite","user_input":"Python 异步编程到底解决了什么","reference_qids":[20115]}
+{"id":"in_24","type":"rewrite","user_input":"读多写少怎么扩展读能力","reference_qids":[20122]}
+{"id":"in_25","type":"rewrite","user_input":"单表数据量太大怎么拆","reference_qids":[20125]}
+{"id":"in_26","type":"rewrite","user_input":"用户输入怎么防止被拼进 SQL","reference_qids":[20130]}
+{"id":"in_27","type":"rewrite","user_input":"用户提交的脚本被浏览器执行怎么办","reference_qids":[20133]}
+{"id":"in_28","type":"rewrite","user_input":"无状态认证和有状态认证怎么选","reference_qids":[20142]}
+{"id":"in_29","type":"rewrite","user_input":"为什么 Redis 比 MySQL 快","reference_qids":[20051]}
+{"id":"in_30","type":"rewrite","user_input":"缓存大面积过期数据库被打爆怎么防","reference_qids":[20034]}
+{"id":"in_31","type":"rewrite","user_input":"怎么实现一个 TopN 排行榜","reference_qids":[20191]}
+{"id":"in_32","type":"rewrite","user_input":"容器和虚拟机有什么区别","reference_qids":[20192]}
+{"id":"in_33","type":"rewrite","user_input":"怎么测接口的并发吞吐能力","reference_qids":[20195]}
+{"id":"in_34","type":"rewrite","user_input":"服务端怎么主动推送消息给客户端","reference_qids":[20188]}
+{"id":"in_35","type":"rewrite","user_input":"从库怎么跟主库保持数据一致","reference_qids":[20198]}
+{"id":"in_36","type":"rewrite","user_input":"联合索引的查询条件怎么才能走索引","reference_qids":[20078]}
+{"id":"in_37","type":"rewrite","user_input":"多个服务之间怎么传密钥和用户状态","reference_qids":[20136]}
+{"id":"in_38","type":"rewrite","user_input":"缓存命中率低是不是 key 设计有问题","reference_qids":[20038]}
+{"id":"in_39","type":"rewrite","user_input":"社区热门内容怎么综合浏览量、点赞和发布时间排序","reference_qids":[20189,20190]}
+{"id":"in_40","type":"rewrite","user_input":"接口突然超时可能是哪里出问题","reference_qids":[20064,20094,20181]}
+{"id":"out_01","type":"out_of_domain","user_input":"今天北京天气怎么样","reference_qids":[]}
+{"id":"out_02","type":"out_of_domain","user_input":"红烧肉怎么做才好吃","reference_qids":[]}
+{"id":"out_03","type":"out_of_domain","user_input":"曼联今晚的比分是多少","reference_qids":[]}
+{"id":"out_04","type":"out_of_domain","user_input":"李佳琦直播间今天卖什么","reference_qids":[]}
+{"id":"out_05","type":"out_of_domain","user_input":"茅台股价现在多少","reference_qids":[]}
+{"id":"out_06","type":"out_of_domain","user_input":"去西藏旅游要注意什么","reference_qids":[]}
+{"id":"out_07","type":"out_of_domain","user_input":"金毛怎么训练握手","reference_qids":[]}
+{"id":"out_08","type":"out_of_domain","user_input":"《流浪地球3》什么时候上映","reference_qids":[]}
+{"id":"out_09","type":"out_of_domain","user_input":"高血压平时饮食要注意什么","reference_qids":[]}
+{"id":"out_10","type":"out_of_domain","user_input":"steam 夏促有什么值得买的游戏","reference_qids":[]}

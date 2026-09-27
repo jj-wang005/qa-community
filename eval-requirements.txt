@@ -1,0 +1,7 @@
+# Ragas 0.4.3 imports a VertexAI compatibility module removed from
+# langchain-community 0.4.x. Keep this pair locked until upstream resolves it.
+ragas==0.3.9
+langchain-community==0.3.31
+GitPython==3.1.62
+dataclasses-json==0.6.7
+pandas==3.0.6

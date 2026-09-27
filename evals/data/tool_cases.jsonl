@@ -1,0 +1,2 @@
+{"id":"answers_01","type":"tool_routing","user_input":"请先在社区知识库搜索缓存穿透，再查看检索到的相关问题下有哪些具体回答","reference_qids":[20029],"required_tools":["search_master","get_answers"],"allowed_tools":["search_master","get_answers"],"label_quality":"routing_rule"}
+{"id":"answers_02","type":"tool_routing","user_input":"请查看社区问题 qid=20029 下的具体回答","reference_qids":[20029],"required_tools":["get_answers"],"allowed_tools":["get_answers"],"label_quality":"routing_rule"}

@@ -25,6 +25,9 @@ CLAUDE.md
 # 本地测试脚本
 scripts/
 
+# Generated RAG evaluation reports (source cases under evals/data stay tracked)
+evals/results/
+
 # 性能压测报告（个人记录）
 docs/
 
