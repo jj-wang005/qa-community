@@ -1,13 +1,14 @@
 <script setup lang="ts">
-import { Bot, LogIn, LogOut, MessageCircleQuestion, Menu, X } from 'lucide-vue-next'
+import { Bot, LogIn, LogOut, MessageCircleQuestion, Menu, UserRound, X } from 'lucide-vue-next'
 import { ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { auth } from '../stores/auth'
+import { drafts } from '../stores/drafts'
 
 const route = useRoute()
 const router = useRouter()
 const menuOpen = ref(false)
-function logout() { auth.clearAuth(); menuOpen.value = false; router.push('/login') }
+function logout() { drafts.title = ''; drafts.content = ''; drafts.answers = {}; auth.clearAuth(); menuOpen.value = false; router.push('/login') }
 </script>
 
 <template>
@@ -17,12 +18,13 @@ function logout() { auth.clearAuth(); menuOpen.value = false; router.push('/logi
         <span class="brand-mark">Q?</span>
         <span><strong>问答公社</strong><small>知识经过讨论才可靠</small></span>
       </RouterLink>
-      <button class="icon-button mobile-menu" :aria-label="menuOpen ? '关闭菜单' : '打开菜单'" @click="menuOpen = !menuOpen">
+      <button class="icon-button mobile-menu" :aria-expanded="menuOpen" :aria-label="menuOpen ? '关闭菜单' : '打开菜单'" @click="menuOpen = !menuOpen">
         <X v-if="menuOpen" :size="20" /><Menu v-else :size="20" />
       </button>
       <nav :class="['main-nav', { open: menuOpen }]" aria-label="主导航">
         <RouterLink :class="{ active: route.path.startsWith('/questions') }" to="/questions" @click="menuOpen = false"><MessageCircleQuestion :size="18" />社区问答</RouterLink>
         <RouterLink :class="{ active: route.path === '/assistant' }" to="/assistant" @click="menuOpen = false"><Bot :size="18" />AI 助手</RouterLink>
+        <RouterLink :class="{ active: route.path === '/profile' }" to="/profile" @click="menuOpen = false"><UserRound :size="18" />个人中心</RouterLink>
         <span class="nav-rule" />
         <button v-if="auth.isAuthenticated.value" class="nav-session" @click="logout"><span>{{ auth.state.username }}</span><LogOut :size="17" />退出</button>
         <RouterLink v-else class="nav-session" to="/login" @click="menuOpen = false"><LogIn :size="17" />登录</RouterLink>

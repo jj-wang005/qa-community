@@ -1,11 +1,12 @@
 <script setup lang="ts">
 import { ArrowRight, KeyRound, UserRound } from 'lucide-vue-next'
 import { ref } from 'vue'
-import { useRouter } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import { api } from '../api/client'
 import { auth } from '../stores/auth'
 
 const router = useRouter()
+const route = useRoute()
 const mode = ref<'login' | 'register'>('login')
 const username = ref('')
 const password = ref('')
@@ -13,12 +14,17 @@ const error = ref('')
 const loading = ref(false)
 
 async function submit() {
+  if (loading.value || !username.value.trim() || !password.value) return
   error.value = ''; loading.value = true
   try {
-    if (mode.value === 'register') await api('/api/v1/auth/register', { method: 'POST', body: JSON.stringify({ username: username.value, password: password.value }) })
+    if (mode.value === 'register') {
+      await api('/api/v1/auth/register', { method: 'POST', body: JSON.stringify({ username: username.value, password: password.value }) })
+      mode.value = 'login'
+    }
     const data = await api<{ access_token: string; refresh_token: string }>('/api/v1/auth/login', { method: 'POST', body: JSON.stringify({ username: username.value, password: password.value }) })
     auth.saveTokens(data.access_token, data.refresh_token, username.value)
-    router.push('/questions')
+    const target = typeof route.query.redirect === 'string' ? route.query.redirect : '/questions'
+    await router.replace(target.startsWith('/') && !target.startsWith('//') && !target.startsWith('/login') ? target : '/questions')
   } catch (err) { error.value = err instanceof Error ? err.message : '请求未完成' }
   finally { loading.value = false }
 }
@@ -38,7 +44,7 @@ async function submit() {
       <label><span>密码</span><div class="field-with-icon"><KeyRound :size="18" /><input v-model="password" type="password" minlength="6" maxlength="16" :autocomplete="mode === 'login' ? 'current-password' : 'new-password'" required placeholder="输入密码"></div></label>
       <p v-if="error" class="form-error" role="alert">{{ error }}</p>
       <button class="primary-button wide" :disabled="loading">{{ loading ? '正在处理…' : mode === 'login' ? '登录' : '注册并登录' }}<ArrowRight :size="18" /></button>
-      <button class="text-button" type="button" @click="mode = mode === 'login' ? 'register' : 'login'; error = ''">{{ mode === 'login' ? '没有账户？现在注册' : '已有账户？返回登录' }}</button>
+      <button class="text-button" type="button" :disabled="loading" @click="mode = mode === 'login' ? 'register' : 'login'; error = ''">{{ mode === 'login' ? '没有账户？现在注册' : '已有账户？返回登录' }}</button>
     </form>
   </section>
 </template>

@@ -4,5 +4,9 @@ import AppShell from './components/AppShell.vue'
 </script>
 
 <template>
-  <AppShell><RouterView /></AppShell>
+  <AppShell>
+    <RouterView v-slot="{ Component }">
+      <KeepAlive include="AssistantPage"><component :is="Component" /></KeepAlive>
+    </RouterView>
+  </AppShell>
 </template>

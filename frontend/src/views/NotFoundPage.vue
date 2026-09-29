@@ -1,0 +1,1 @@
+<template><section class="empty-state"><strong>这个页面不存在</strong><p>地址可能有误，或页面已被移除。</p><RouterLink class="primary-button" to="/questions">返回社区问答</RouterLink></section></template>

@@ -13,9 +13,14 @@ const router = createRouter({
     { path: '/questions/:id', component: QuestionDetailPage },
     { path: '/assistant', component: AssistantPage },
     { path: '/login', component: LoginPage },
+    { path: '/profile', component: () => import('../views/ProfilePage.vue'), meta: { requiresAuth: true } },
+    { path: '/:pathMatch(.*)*', component: () => import('../views/NotFoundPage.vue') },
   ],
-  scrollBehavior: () => ({ top: 0 }),
+  scrollBehavior: (_to, _from, savedPosition) => savedPosition ?? ({ top: 0 }),
 })
 
-router.beforeEach((to) => to.path === '/login' && auth.isAuthenticated.value ? '/questions' : true)
+router.beforeEach((to) => {
+  if (to.meta.requiresAuth && !auth.isAuthenticated.value) return { path: '/login', query: { redirect: to.fullPath } }
+  return to.path === '/login' && auth.isAuthenticated.value ? '/profile' : true
+})
 export default router
